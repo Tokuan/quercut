@@ -1,0 +1,32 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Output files (если не нужны в репозитории)
+*.svg
+*.png
+*.jpg
+*.log
+
+# OS leftovers
+.DS_Store
+Thumbs.db
+
+# Project-specific (можешь добавить что-то своё)
+test_output.svg   # этот файл ты точно не хочешь коммитить
