@@ -24,6 +24,7 @@ class Part:
     width: int = 0
     quantity: int = 0
     rotatable: bool = True   # можно ли повернуть на 90°
+    global_index: int = 0
 
 
 @dataclass
@@ -42,6 +43,7 @@ class PlacedPart:
     length: int    # фактический размер по X
     width: int     # фактический размер по Y
     rotated: bool = False
+    global_index: int = 0
 
 
 @dataclass

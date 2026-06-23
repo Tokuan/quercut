@@ -12,6 +12,7 @@ def parse_input(text: str) -> Tuple[List[StockSheet], List[Part], CutConfig]:
         'trim_top': 0,
         'trim_bottom': 0
     }
+    global_idx = 0
 
     for line in lines:
         if line.startswith('@'):
@@ -54,7 +55,8 @@ def parse_input(text: str) -> Tuple[List[StockSheet], List[Part], CutConfig]:
                 if len(tokens) >= 6:
                     label = tokens[5]
                 parts.append(Part(label=label, length=length, width=width,
-                                  quantity=qty, rotatable=rotatable))
+                                  quantity=qty, rotatable=rotatable, global_index=global_idx))
+                global_idx += 1
 
     config = CutConfig(
         kerf=config_data['kerf'],
@@ -63,4 +65,7 @@ def parse_input(text: str) -> Tuple[List[StockSheet], List[Part], CutConfig]:
         trim_top=config_data['trim_top'],
         trim_bottom=config_data['trim_bottom']
     )
+    for i, p in enumerate(parts):
+        print(f"{i}: label={p.label}, global_index={p.global_index}, size={p.length}x{p.width}")
+
     return stocks, parts, config

@@ -33,10 +33,6 @@ P	800	200	6
 
 if __name__ == "__main__":
     stocks, parts, config = parse_input(SAMPLE_INPUT)
-    # config уже содержит kerf и отступы. Можно переопределить min_remnant_area, если нужно:
-    # config = CutConfig(kerf=config.kerf, trim_left=config.trim_left, ...)
-
-
 
     preferred_direction = "both"
     strip_sorting = "desc"

@@ -369,7 +369,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 part_label=b.part.label,
                 x=x, y=y0,
                 length=lx, width=wy,
-                rotated=rot
+                rotated=rot,
+                global_index=b.part.global_index
             ))
             if x + lx + kerf <= x0 + strip_w:
                 cuts.append(Cut(x + lx, y0, x + lx, y0 + wy, Direction.VERTICAL))
@@ -403,7 +404,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 part_label=b.part.label,
                 x=x0, y=y,
                 length=lx, width=wy,
-                rotated=rot
+                rotated=rot,
+                global_index=b.part.global_index
             ))
             if y + wy + kerf <= y0 + strip_h:
                 cuts.append(Cut(x0, y + wy, x0 + lx, y + wy, Direction.HORIZONTAL))

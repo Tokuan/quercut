@@ -153,7 +153,8 @@ class GuillotineBaseStrategy:
                 y=node.y,
                 length=width,
                 width=height,
-                rotated=rotated
+                rotated=rotated,
+                global_index=part.global_index
             )
         )
 
@@ -193,7 +194,8 @@ class GuillotineBaseStrategy:
                     length=b.part.length,
                     width=b.part.width,
                     quantity=1,
-                    rotatable=b.part.rotatable
+                    rotatable=b.part.rotatable,
+                    global_index=b.part.global_index
                 )
                 parts_expanded.append((idx, p))
         parts_expanded.sort(key=lambda item: item[1].length * item[1].width, reverse=True)
@@ -244,7 +246,8 @@ class GuillotineBaseStrategy:
                 y=pp.y + trim,
                 length=pp.length,
                 width=pp.width,
-                rotated=pp.rotated
+                rotated=pp.rotated,
+                global_index=pp.global_index
             ))
         cuts = []
         self._extract_cuts(sheet.root, cuts)
