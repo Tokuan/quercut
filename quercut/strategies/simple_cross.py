@@ -1,3 +1,5 @@
+# simple_cross.py
+
 from typing import List
 from .base import Strategy
 from ..models import StockSheet, Part, PartBatch, CutLayout, CutConfig
@@ -15,12 +17,27 @@ class SimpleCrossStrategy(Strategy, GuillotineBaseStrategy):
 
         if not stocks:
             raise ValueError("Не задано ни одного типоразмера листа")
-        template = stocks[0]
+
+        # Находим шаблон для неограниченных листов
+        unlimited_template = None
+        for stock in stocks:
+            if stock.is_unlimited:
+                unlimited_template = stock
+                break
+
         stock_queue = list(stocks)
 
         while any(b.remaining > 0 for b in batches):
             if not stock_queue:
-                stock_queue.append(StockSheet(template.length, template.width, template.label))
+                if unlimited_template is not None:
+                    stock_queue.append(StockSheet(
+                        unlimited_template.length,
+                        unlimited_template.width,
+                        unlimited_template.label,
+                        is_unlimited=True
+                    ))
+                else:
+                    break
             stock = stock_queue.pop(0)
 
             trim_left = config.trim_left
@@ -58,4 +75,17 @@ class SimpleCrossStrategy(Strategy, GuillotineBaseStrategy):
                 layout_id_ord += 1
             else:
                 continue
+
+        # Сохраняем неразмещённые детали
+        unplaced = []
+        for b in batches:
+            if b.remaining > 0:
+                unplaced.append({
+                    'label': b.part.label,
+                    'length': b.part.length,
+                    'width': b.part.width,
+                    'remaining': b.remaining
+                })
+        self.unplaced_parts = unplaced
+
         return layouts

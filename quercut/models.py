@@ -14,6 +14,15 @@ class StockSheet:
     length: int
     width: int
     label: str = ""
+    is_unlimited: bool = False  # True для целых листов, False для обрезков
+
+
+@dataclass
+class EdgeBand:
+    """Кромка для стороны детали."""
+    thickness: float = 0.0
+    material: str = ""
+    color: str = ""
 
 
 @dataclass
@@ -25,6 +34,11 @@ class Part:
     quantity: int = 0
     rotatable: bool = True   # можно ли повернуть на 90°
     global_index: int = 0
+    # Кромки по сторонам (None = нет кромки)
+    edge_length_top: Optional[EdgeBand] = None     # верхняя по длине
+    edge_length_bottom: Optional[EdgeBand] = None  # нижняя по длине
+    edge_width_left: Optional[EdgeBand] = None     # левая по ширине
+    edge_width_right: Optional[EdgeBand] = None    # правая по ширине
 
 
 @dataclass

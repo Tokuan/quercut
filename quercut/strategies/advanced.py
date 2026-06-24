@@ -18,14 +18,34 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
         batches = [PartBatch(part=p, remaining=p.quantity) for p in parts]
         layouts = []
         layout_id_ord = ord('A')
+
         if not stocks:
             raise ValueError("Нет листов")
-        template = stocks[0]
+
+        # Находим шаблон для неограниченных листов
+        unlimited_template = None
+        for stock in stocks:
+            if stock.is_unlimited:
+                unlimited_template = stock
+                break
+
+        # Очередь листов
         stock_queue = list(stocks)
 
         while any(b.remaining > 0 for b in batches):
             if not stock_queue:
-                stock_queue.append(StockSheet(template.length, template.width, template.label))
+                if unlimited_template is not None:
+                    # Создаём новый неограниченный лист
+                    stock_queue.append(StockSheet(
+                        unlimited_template.length,
+                        unlimited_template.width,
+                        unlimited_template.label,
+                        is_unlimited=True
+                    ))
+                else:
+                    # Листов больше нет — выходим
+                    break
+
             stock = stock_queue.pop(0)
 
             trim_left = config.trim_left
@@ -34,6 +54,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
             trim_bottom = config.trim_bottom
             usable_l = stock.length - trim_left - trim_right
             usable_w = stock.width - trim_top - trim_bottom
+
             if usable_l <= 0 or usable_w <= 0:
                 continue
 
@@ -108,6 +129,20 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 cuts=best_cuts
             ))
             layout_id_ord += 1
+
+        # После цикла собираем неразмещённые детали
+        unplaced = []
+        for b in batches:
+            if b.remaining > 0:
+                unplaced.append({
+                    'label': b.part.label,
+                    'length': b.part.length,
+                    'width': b.part.width,
+                    'remaining': b.remaining
+                })
+
+        # Сохраняем неразмещённые детали в атрибут (опционально)
+        self.unplaced_parts = unplaced
 
         return layouts
 

@@ -40,9 +40,14 @@ def parse_input(text: str) -> Tuple[List[StockSheet], List[Part], CutConfig]:
             if len(tokens) >= 3:
                 length = int(tokens[1])
                 width = int(tokens[2])
-                qty = int(tokens[3]) if len(tokens) > 3 else 1
+                if len(tokens) > 3:
+                    qty = int(tokens[3])
+                    is_unlimited = False  # указано точное количество → обрезки
+                else:
+                    qty = 1  # хотя бы 1, но в алгоритме будет восполняться
+                    is_unlimited = True  # количество не указано → целые листы
                 for _ in range(qty):
-                    stocks.append(StockSheet(length, width))
+                    stocks.append(StockSheet(length, width, is_unlimited=is_unlimited))
         elif key == 'P':
             if len(tokens) >= 4:
                 length = int(tokens[1])

@@ -17,8 +17,11 @@ RT	15
 TT	15
 BT	15
 @	Length	Width	Quantity	Grain direction
-S	3000	2000
+S	1200	2000    1
+S	1600	2000    1
+S	3000	2000    1
 @	Length	Width	Quantity	Grain direction	Label
+P   1800 320 3
 P	200	300	6	
 P	300	400	6	
 P	400	500	4	
@@ -57,8 +60,13 @@ if __name__ == "__main__":
     print("preferred_direction =", preferred_direction)
     print("strip_sorting =", strip_sorting)
     print(report)
+    # Проверяем неразмещённые детали
+    if hasattr(strategy, 'unplaced_parts') and strategy.unplaced_parts:
+        print("\nНЕРАЗМЕЩЁННЫЕ ДЕТАЛИ:")
+        for u in strategy.unplaced_parts:
+            print(f"  {u['remaining']} шт. {u['length']}×{u['width']} (label: {u['label']})")
 
-    svg = generate_svg(layouts, config)
+    svg = generate_svg(layouts, config, monochrome=False)
     with open("test_output.svg", "w", encoding="utf-8") as f:
         f.write(svg)
     print("SVG сохранён в test_output.svg")

@@ -12,11 +12,11 @@ transform-origin: 50% 50%;" transform="matrix(0.999229, 0.039251, -0.039251, 0.9
 """
 
 
-def generate_svg(layouts: List[CutLayout], config: CutConfig, max_width=1200) -> str:
+def generate_svg(layouts: List[CutLayout], config: CutConfig, max_width=1200, monochrome: bool = False) -> str:
     margin = 20
     svg_panels = []
     for layout in layouts:
-        svg_panels.append(_render_layout(layout, config))
+        svg_panels.append(_render_layout(layout, config, monochrome))
 
     # Компоновка листов
     panel_width = max(l.stock_length for l in layouts) + 2 * margin
@@ -30,10 +30,10 @@ def generate_svg(layouts: List[CutLayout], config: CutConfig, max_width=1200) ->
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {total_width} {total_height}" width="{min(total_width, max_width)}">']
     svg.append(f'<rect width="{total_width}" height="{total_height}" fill="white"/>')
     svg.append('<style>')
-    svg.append('.dim { font-family: "Ubuntu Mono", monospace; font-size: 28px; fill: #333; }')
-    svg.append('.dim-large { font-family: "Ubuntu Mono", monospace; font-size: 36px; fill: #000; font-weight: bold; }')
-    svg.append('.dim-small { font-family: "Ubuntu Mono", monospace; font-size: 24px; fill: #666; }')
-    svg.append('.pos-num { font-family: "Ubuntu Mono", monospace; font-size: 48px; fill: #000; font-weight: bold; }')
+    svg.append('.dim { font-family: "Ubuntu Mono", monospace; font-size: 36px; fill: #333; }')
+    svg.append('.dim-large { font-family: "Ubuntu Mono", monospace; font-size: 48px; fill: #000; font-weight: bold; }')
+    svg.append('.dim-small { font-family: "Ubuntu Mono", monospace; font-size: 36px; fill: #666; }')
+    svg.append('.pos-num { font-family: "Ubuntu Mono", monospace; font-size: 64px; fill: #000; font-weight: bold; }')
     svg.append('</style>')
 
     # Добавляем иконку поворота в defs
@@ -54,7 +54,7 @@ def generate_svg(layouts: List[CutLayout], config: CutConfig, max_width=1200) ->
     return '\n'.join(svg)
 
 
-def _render_layout(layout: CutLayout, config: CutConfig) -> str:
+def _render_layout(layout: CutLayout, config: CutConfig, monochrome: bool = False) -> str:
     stock_l = layout.stock_length
     stock_w = layout.stock_width
     trim_l = config.trim_left
@@ -62,109 +62,148 @@ def _render_layout(layout: CutLayout, config: CutConfig) -> str:
     trim_t = config.trim_top
     trim_b = config.trim_bottom
 
+    # Выбираем палитру в зависимости от режима
+    if monochrome:
+        # Контрастные оттенки серого для ч/б печати
+        colors = [
+            '#ffffff', '#f0f0f0', '#e5e5e5', '#d9d9d9', '#cccccc',
+            '#bfbfbf', '#b3b3b3', '#a6a6a6', '#999999', '#8c8c8c'
+        ]
+        bg_color = "#ffffff"
+        stock_stroke = "#000000"
+        trim_color = "#000000"
+        rect_stroke = "#000000"
+        cut_stroke = "#000000"
+        cut_opacity = "1"
+        text_fill = "#000000"
+        circle_fill = "#ffffff"
+        circle_text = "#000000"
+        icon_color = "#000000"
+    else:
+        colors = [
+            '#e3f2fd', '#e8f5e9', '#fff8e1', '#fce4ec', '#f3e5f5',
+            '#e0f7fa', '#fff3e0', '#e8eaf6', '#f1f8e9', '#fbe9e7'
+        ]
+        bg_color = "#f8f9fa"
+        stock_stroke = "#333"
+        trim_color = "#999"
+        rect_stroke = "#555"
+        cut_stroke = "#d32f2f"
+        cut_opacity = "0.6"
+        text_fill = "#333"
+        circle_fill = "#ffffff"
+        circle_text = "#000000"
+        icon_color = "#1565c0"
+
     lines = []
+
     # Фон листа
     lines.append(
-        f'<rect x="0" y="0" width="{stock_l}" height="{stock_w}" fill="#f8f9fa" stroke="#333" stroke-width="2"/>')
+        f'<rect x="0" y="0" width="{stock_l}" height="{stock_w}" fill="{bg_color}" stroke="{stock_stroke}" stroke-width="2"/>')
 
     # Область подрезки
     if trim_l > 0 or trim_r > 0 or trim_t > 0 or trim_b > 0:
         usable_l = stock_l - trim_l - trim_r
         usable_w = stock_w - trim_t - trim_b
         lines.append(
-            f'<rect x="{trim_l}" y="{trim_b}" width="{usable_l}" height="{usable_w}" fill="#ffffff" stroke="#999" stroke-width="1" stroke-dasharray="8,4"/>')
+            f'<rect x="{trim_l}" y="{trim_b}" width="{usable_l}" height="{usable_w}" fill="#ffffff" stroke="{trim_color}" stroke-width="1" stroke-dasharray="8,4"/>')
         # Подписи отступов
         if trim_l > 0:
             lines.append(
-                f'<text x="{trim_l / 2}" y="{stock_w / 2}" class="dim-small" text-anchor="middle" transform="rotate(-90,{trim_l / 2},{stock_w / 2})">LT {trim_l}</text>')
+                f'<text x="{trim_l / 2}" y="{stock_w / 2}" class="dim-small" fill="{text_fill}" text-anchor="middle" transform="rotate(-90,{trim_l / 2},{stock_w / 2})">LT {trim_l}</text>')
         if trim_r > 0:
             rx = stock_l - trim_r / 2
             lines.append(
-                f'<text x="{rx}" y="{stock_w / 2}" class="dim-small" text-anchor="middle" transform="rotate(90,{rx},{stock_w / 2})">RT {trim_r}</text>')
+                f'<text x="{rx}" y="{stock_w / 2}" class="dim-small" fill="{text_fill}" text-anchor="middle" transform="rotate(90,{rx},{stock_w / 2})">RT {trim_r}</text>')
         if trim_b > 0:
             lines.append(
-                f'<text x="{stock_l / 2}" y="{trim_b / 2}" class="dim-small" text-anchor="middle">BT {trim_b}</text>')
+                f'<text x="{stock_l / 2}" y="{trim_b / 2}" class="dim-small" fill="{text_fill}" text-anchor="middle">BT {trim_b}</text>')
         if trim_t > 0:
             ty = stock_w - trim_t / 2
-            lines.append(f'<text x="{stock_l / 2}" y="{ty}" class="dim-small" text-anchor="middle">TT {trim_t}</text>')
+            lines.append(
+                f'<text x="{stock_l / 2}" y="{ty}" class="dim-small" fill="{text_fill}" text-anchor="middle">TT {trim_t}</text>')
 
-    # Цвета для деталей
-    colors = [
-        '#e3f2fd', '#e8f5e9', '#fff8e1', '#fce4ec', '#f3e5f5',
-        '#e0f7fa', '#fff3e0', '#e8eaf6', '#f1f8e9', '#fbe9e7'
-    ]
+    # В монохромном режиме иконка поворота становится чёрной
+    if monochrome:
+        lines.append('<defs>')
+        lines.append(ROTATE_ICON.replace('#1565c0', icon_color))
+        lines.append('</defs>')
+    else:
+        lines.append('<defs>')
+        lines.append(ROTATE_ICON)
+        lines.append('</defs>')
 
     # Строим карту занятости для обрезков
     occupied = _build_occupied_grid(layout, config)
 
     # Рисуем детали
-    for i, pp in enumerate(layout.placements):
-        color = colors[i % len(colors)]
+    for pp in layout.placements:
+        color = colors[pp.global_index % len(colors)]
         x, y, w, h = pp.x, pp.y, pp.length, pp.width
 
         # Прямоугольник детали
         lines.append(
-            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{color}" stroke="#555" stroke-width="1.5" rx="2"/>')
+            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{color}" stroke="{rect_stroke}" stroke-width="1.5" rx="2"/>')
 
         # Номер позиции (в правом нижнем углу, в кружочке)
-        circle_r = 36
-        cx = x + w - (circle_r+4)
-        cy = y + h - (circle_r+4)
-        lines.append(f'<circle cx="{cx}" cy="{cy}" r="{circle_r}" fill="#ffffff" opacity="0.9"/>')
-        idx = pp.global_index + 1
+        circle_r = 54
+        cx = x + w - (circle_r+16)
+        cy = y + h - (circle_r+16)
+        lines.append(f'<circle cx="{cx}" cy="{cy}" r="{circle_r}" fill="{circle_fill}" opacity="0.6"/>')
         lines.append(
-            f'<text x="{cx}" y="{cy + 2}" class="pos-num" fill="white" text-anchor="middle" dominant-baseline="central">{idx}</text>')
+            f'<text x="{cx}" y="{cy + 2}" class="pos-num" fill="{circle_text}" text-anchor="middle" dominant-baseline="central">{pp.global_index + 1}</text>')
 
         # Размеры вдоль сторон
         if w >= h:
             if w > 50:
-                lines.append(f'<text x="{x + w / 2}" y="{y + 36}" class="dim-large" text-anchor="middle">{w}</text>')
+                lines.append(
+                    f'<text x="{x + w / 2}" y="{y + 36}" class="dim-large" fill="{text_fill}" text-anchor="middle">{w}</text>')
             if h > 40:
                 lines.append(
-                    f'<text x="{x + 26}" y="{y + h / 2}" class="dim-large" text-anchor="middle" transform="rotate(-90,{x + 36},{y + h / 2})">{h}</text>')
+                    f'<text x="{x + 26}" y="{y + h / 2}" class="dim-large" fill="{text_fill}" text-anchor="middle" transform="rotate(-90,{x + 36},{y + h / 2})">{h}</text>')
         else:
             if w > 40:
-                lines.append(f'<text x="{x + w / 2}" y="{y + 36}" class="dim-large" text-anchor="middle">{w}</text>')
+                lines.append(
+                    f'<text x="{x + w / 2}" y="{y + 36}" class="dim-large" fill="{text_fill}" text-anchor="middle">{w}</text>')
             if h > 50:
                 lines.append(
-                    f'<text x="{x + 36}" y="{y + h / 2}" class="dim-large" text-anchor="middle" transform="rotate(-90,{x + 36},{y + h / 2})">{h}</text>')
+                    f'<text x="{x + 36}" y="{y + h / 2}" class="dim-large" fill="{text_fill}" text-anchor="middle" transform="rotate(-90,{x + 36},{y + h / 2})">{h}</text>')
 
-        # Иконка поворота, если деталь была повёрнута
+        # Иконка поворота
         if pp.rotated:
-            icon_size = 64
+            icon_size = 24
             icon_x = x + icon_size / 2 + 4
             icon_y = y + icon_size / 2 + 4
             lines.append(
                 f'<use href="#rotate-icon" x="{icon_x - icon_size / 2}" y="{icon_y - icon_size / 2}" width="{icon_size}" height="{icon_size}"/>')
 
-    # Рисуем резы и подписываем обрезные части
+    # Рисуем резы
     for cut in layout.cuts:
         x1, y1, x2, y2 = cut.x1, cut.y1, cut.x2, cut.y2
         lines.append(
-            f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#d32f2f" stroke-width="1.5" opacity="0.6"/>')
+            f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{cut_stroke}" stroke-width="1.5" opacity="{cut_opacity}"/>')
 
-        # Вычисляем длину обрезной части
+        # Свободные сегменты
         if cut.direction == Direction.VERTICAL:
             free_segments = _find_free_segments_along_cut(x1, y1, x2, y2, occupied, axis='y')
         else:
             free_segments = _find_free_segments_along_cut(x1, y1, x2, y2, occupied, axis='x')
 
-        # Подписываем каждый свободный сегмент
         for seg in free_segments:
             seg_length = seg['end'] - seg['start']
             if seg_length >= 15:
                 if cut.direction == Direction.VERTICAL:
                     mid_y = (seg['start'] + seg['end']) / 2
                     lines.append(
-                        f'<text x="{x1 - 8}" y="{mid_y}" class="dim-small" fill="#c62828" text-anchor="end" transform="rotate(-90,{x1 - 8},{mid_y})">{seg_length}</text>')
+                        f'<text x="{x1 - 8}" y="{mid_y}" class="dim-small" fill="{text_fill}" text-anchor="end" transform="rotate(-90,{x1 - 8},{mid_y})">{seg_length}</text>')
                 else:
                     mid_x = (seg['start'] + seg['end']) / 2
                     lines.append(
-                        f'<text x="{mid_x}" y="{y1 - 8}" class="dim-small" fill="#c62828" text-anchor="middle">{seg_length}</text>')
+                        f'<text x="{mid_x}" y="{y1 - 8}" class="dim-small" fill="{text_fill}" text-anchor="middle">{seg_length}</text>')
 
     # Подпись Layout ID
     lines.append(
-        f'<text x="{stock_l - 10}" y="{stock_w - 10}" class="dim-large" text-anchor="end" font-weight="bold">{layout.layout_id}</text>')
+        f'<text x="{stock_l - 10}" y="{stock_w - 10}" class="dim-large" fill="{text_fill}" text-anchor="end" font-weight="bold">{layout.layout_id}</text>')
 
     return '\n'.join(lines)
 
