@@ -41,8 +41,8 @@ if __name__ == "__main__":
     strip_sorting = "desc"
 
     # Выберите стратегию:
-    strategy = SimpleRipStrategy()
-    #strategy = SimpleCrossStrategy()
+    #strategy = SimpleRipStrategy()
+    strategy = SimpleCrossStrategy()
     #strategy = OptimalGuillotineStrategy()
     #strategy = AdvancedGuillotineStrategy()
     #strategy = AdvancedGuillotineStrategy(preferred_direction="horizontal", strip_sorting="desc")

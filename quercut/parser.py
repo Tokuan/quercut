@@ -23,7 +23,7 @@ def parse_input(text: str) -> Tuple[List[StockSheet], List[Part], CutConfig]:
         key = tokens[0]
         if key == 'K':
             if len(tokens) > 1:
-                config_data['kerf'] = int(tokens[1])
+                config_data['kerf'] = float(tokens[1])
         elif key == 'LT':
             if len(tokens) > 1:
                 config_data['trim_left'] = int(tokens[1])

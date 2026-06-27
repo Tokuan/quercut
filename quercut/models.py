@@ -115,7 +115,7 @@ class CutLayout:
 @dataclass(frozen=True)
 class CutConfig:
     """Глобальные параметры раскроя."""
-    kerf: int = 0
+    kerf: float = 0
     trim_left: int = 0
     trim_right: int = 0
     trim_top: int = 0
