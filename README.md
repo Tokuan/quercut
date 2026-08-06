@@ -141,7 +141,7 @@ P	<длина>	<ширина>	<количество>	[grain]	[label]
   },
   "layouts": [
     {
-      "layout_id": "A",
+      "layout_id": 1,
       "stock_length": 3000,
       "stock_width": 2000,
       "placements": [
@@ -185,7 +185,7 @@ P	<длина>	<ширина>	<количество>	[grain]	[label]
 | `total_sheets` | int | Количество использованных листов |
 | `config` | object | Параметры раскроя (kerf + trim) |
 | `layouts` | array | Список листов с размещёнными деталями |
-| `layouts[].layout_id` | string | Идентификатор листа (A, B, C...) |
+| `layouts[].layout_id` | int | Идентификатор листа (1, 2, 3...) |
 | `layouts[].stock_length` | int | Полная длина листа (с учётом подрезки) |
 | `layouts[].stock_width` | int | Полная ширина листа |
 | `layouts[].placements` | array | Размещённые детали |

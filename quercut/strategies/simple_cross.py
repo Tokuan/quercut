@@ -13,7 +13,7 @@ class SimpleCrossStrategy(Strategy, GuillotineBaseStrategy):
                config: CutConfig) -> List[CutLayout]:
         batches = [PartBatch(part=p, remaining=p.quantity) for p in parts]
         layouts = []
-        layout_id_ord = ord('A')
+        layout_id_ord = 1
 
         if not stocks:
             raise ValueError("Не задано ни одного типоразмера листа")
@@ -65,7 +65,7 @@ class SimpleCrossStrategy(Strategy, GuillotineBaseStrategy):
                 for i, b in enumerate(batches):
                     b.remaining = new_batches[i].remaining
                 layouts.append(CutLayout(
-                    layout_id=chr(layout_id_ord),
+                    layout_id=layout_id_ord,
                     stock_length=stock.length,
                     stock_width=stock.width,
                     repetition=1,

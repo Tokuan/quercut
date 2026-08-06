@@ -102,7 +102,7 @@ class CutTreeNode:
 @dataclass
 class CutLayout:
     """Раскладка одного листа (или обрезка, если используется)."""
-    layout_id: str
+    layout_id: int
     stock_length: int
     stock_width: int
     repetition: int = 1

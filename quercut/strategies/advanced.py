@@ -17,7 +17,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
     def layout(self, stocks, parts, config):
         batches = [PartBatch(part=p, remaining=p.quantity) for p in parts]
         layouts = []
-        layout_id_ord = ord('A')
+        layout_id_ord = 1
 
         if not stocks:
             raise ValueError("Нет листов")
@@ -121,7 +121,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 b.remaining = best_temp_batches[i].remaining
 
             layouts.append(CutLayout(
-                layout_id=chr(layout_id_ord),
+                layout_id=layout_id_ord,
                 stock_length=stock.length,
                 stock_width=stock.width,
                 repetition=1,
