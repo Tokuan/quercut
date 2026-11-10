@@ -115,13 +115,13 @@ def validate_guillotine_layout(
             continue
         if offset <= tolerance:
             raise ValueError(f"Cut {cut_number} starts at the near edge of its region")
-        if offset + kerf > extent + tolerance:
-            raise ValueError(f"Cut {cut_number} kerf extends beyond its available region")
-
+        # The saw may run out through the far edge of the sheet/region.
+        # In that case the remaining sliver is consumed by the kerf; there
+        # is no far-side region to keep.
         regions.pop(region_index)
         if axis == "x":
             left_length = offset
-            right_x = coordinate + kerf
+            right_x = min(coordinate + kerf, region.x + region.length)
             right_length = region.x + region.length - right_x
             if left_length > tolerance:
                 regions.append(_Region(region.x, region.y, left_length, region.width))
@@ -129,7 +129,7 @@ def validate_guillotine_layout(
                 regions.append(_Region(right_x, region.y, right_length, region.width))
         else:
             lower_width = offset
-            upper_y = coordinate + kerf
+            upper_y = min(coordinate + kerf, region.y + region.width)
             upper_width = region.y + region.width - upper_y
             if lower_width > tolerance:
                 regions.append(_Region(region.x, region.y, region.length, lower_width))
