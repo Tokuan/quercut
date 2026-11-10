@@ -396,7 +396,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
         cuts = []
         x = x0
         # Сортируем детали по убыванию длины
-        while x + kerf < x0 + strip_w:
+        while x < x0 + strip_w:
             best = None
             best_len = 0
             for b in batches:
@@ -436,7 +436,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
         placements = []
         cuts = []
         y = y0
-        while y + kerf < y0 + strip_h:
+        while y < y0 + strip_h:
             best = None
             best_len = 0
             for b in batches:
