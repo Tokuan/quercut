@@ -148,6 +148,11 @@ def test_rotation_is_used_only_when_the_part_allows_it(strategy_factory):
 def test_empty_stock_list_is_rejected_by_each_strategy():
     part = Part(label="part", length=10, width=10, quantity=1)
 
-    for strategy_factory in (factory.values[0] for factory in STRATEGY_FACTORIES):
+    for strategy_factory in (
+        SimpleRipStrategy,
+        SimpleCrossStrategy,
+        OptimalGuillotineStrategy,
+        AdvancedGuillotineStrategy,
+    ):
         with pytest.raises(ValueError):
             strategy_factory().layout([], [part], CutConfig())
