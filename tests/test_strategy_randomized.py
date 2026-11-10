@@ -107,41 +107,44 @@ def assert_random_result_is_consistent(strategy, layouts, stock, parts, config):
 
 
 @pytest.mark.parametrize("strategy_factory", BASIC_STRATEGIES)
-def test_basic_strategies_preserve_randomized_layout_invariants(strategy_factory):
+@pytest.mark.parametrize("seed", range(20))
+def test_basic_strategies_preserve_randomized_layout_invariants(strategy_factory, seed):
     """Exercise basic strategies against a fixed corpus of generated inputs."""
-    for seed in range(20):
-        stock, parts, config = make_random_case(seed)
-        strategy = strategy_factory()
+    stock, parts, config = make_random_case(seed)
+    strategy = strategy_factory()
+    try:
         layouts = strategy.layout([stock], parts, config)
-
-        assert_random_result_is_consistent(
-            strategy, layouts, stock, parts, config
-        )
+        assert_random_result_is_consistent(strategy, layouts, stock, parts, config)
+    except (AssertionError, ValueError) as error:
+        raise AssertionError(
+            f"Randomized basic case failed: strategy={strategy_factory.__name__}, "
+            f"seed={seed}, stock={stock!r}, parts={parts!r}, config={config!r}"
+        ) from error
 
 
 @pytest.mark.parametrize("preferred_direction", ["horizontal", "vertical", "both"])
 @pytest.mark.parametrize("strip_sorting", ["desc", "asc", "area"])
 @pytest.mark.parametrize("use_remnants", [False, True])
+@pytest.mark.parametrize("seed", range(20))
 def test_advanced_strategy_preserves_randomized_layout_invariants(
-    preferred_direction, strip_sorting, use_remnants
+    preferred_direction, strip_sorting, use_remnants, seed
 ):
     """Cover Advanced strategy modes with reproducible randomized inputs."""
-    for seed in range(20):
-        stock, parts, config = make_random_case(seed)
-        strategy = AdvancedGuillotineStrategy(
-            preferred_direction=preferred_direction,
-            strip_sorting=strip_sorting,
-            use_remnants=use_remnants,
-        )
-        try:
-            layouts = strategy.layout([stock], parts, config)
-            assert_random_result_is_consistent(
-                strategy, layouts, stock, parts, config
-            )
-        except (AssertionError, ValueError) as error:
-            raise AssertionError(
-                "Randomized case failed: "
-                f"seed={seed}, direction={preferred_direction}, "
-                f"sorting={strip_sorting}, use_remnants={use_remnants}, "
-                f"stock={stock!r}, parts={parts!r}, config={config!r}"
-            ) from error
+    stock, parts, config = make_random_case(seed)
+    strategy = AdvancedGuillotineStrategy(
+        preferred_direction=preferred_direction,
+        strip_sorting=strip_sorting,
+        use_remnants=use_remnants,
+    )
+    layouts = strategy.layout([stock], parts, config)
+    try:
+        assert_random_result_is_consistent(strategy, layouts, stock, parts, config)
+    except (AssertionError, ValueError) as error:
+        raise AssertionError(
+            "Randomized advanced case failed: "
+            f"seed={seed}, direction={preferred_direction}, "
+            f"sorting={strip_sorting}, use_remnants={use_remnants}, "
+            f"stock={stock!r}, parts={parts!r}, config={config!r}, "
+            f"cuts={[layout.cuts for layout in layouts]!r}, "
+            f"placements={[layout.placements for layout in layouts]!r}"
+        ) from error
