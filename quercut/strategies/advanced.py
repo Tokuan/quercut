@@ -422,8 +422,13 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 rotated=rot,
                 global_index=b.part.global_index
             ))
-            if x + lx + kerf <= x0 + strip_w:
-                cuts.append(Cut(x + lx, y0, x + lx, y0 + wy, Direction.VERTICAL))
+            # Отделяющий рез нужен и тогда, когда ширина пропила выходит
+            # за дальнюю границу полосы: остаточная узкая полоска будет
+            # поглощена пропилом. Важно не терять такой последний рез.
+            if x + lx < x0 + strip_w:
+                cuts.append(Cut(
+                    x + lx, y0, x + lx, y0 + strip_h, Direction.VERTICAL
+                ))
             x += lx + kerf
         return placements, cuts, x  # возвращаем x-координату конца последней детали
 
@@ -457,7 +462,11 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 rotated=rot,
                 global_index=b.part.global_index
             ))
-            if y + wy + kerf <= y0 + strip_h:
-                cuts.append(Cut(x0, y + wy, x0 + lx, y + wy, Direction.HORIZONTAL))
+            # Аналогично горизонтальному заполнению: последний рез может
+            # выйти за край полосы, поглотив оставшийся узкий участок.
+            if y + wy < y0 + strip_h:
+                cuts.append(Cut(
+                    x0, y + wy, x0 + strip_w, y + wy, Direction.HORIZONTAL
+                ))
             y += wy + kerf
         return placements, cuts, y
