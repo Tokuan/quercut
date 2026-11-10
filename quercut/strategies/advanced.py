@@ -227,14 +227,24 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
 
     def _apply_strip_and_recurse(self, x0, y0, L, W, batches, kerf, direction, size,
                                  placements_strip, cuts_strip, edge, test_batches):
-        """Вспомогательный метод: обновляет партии, обрабатывает остатки, добавляет резы."""
+        """Обновляет партии и формирует резы в физически исполнимом порядке."""
         for i, b in enumerate(batches):
             b.remaining = test_batches[i].remaining
 
         if direction == Direction.HORIZONTAL:
             right_x = edge
             strip_h = size
-            # Правый остаток
+
+            # Сначала отделяем горизонтальную полосу от нижнего остатка.
+            # После этого обе области становятся доступны для дальнейшего раскроя.
+            rem_W = W - (strip_h + kerf)
+            if rem_W > 0:
+                cuts_strip.append(
+                    Cut(x0, y0 + strip_h, x0 + L, y0 + strip_h, Direction.HORIZONTAL)
+                )
+
+            # Внутренние вертикальные резы уже отделяют детали полосы
+            # друг от друга и, если он есть, от правого остатка.
             if self.use_remnants and right_x < x0 + L:
                 rem_L = (x0 + L) - right_x
                 if rem_L > 0:
@@ -244,10 +254,9 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                     )
                     placements_strip.extend(p_rec)
                     cuts_strip.extend(c_rec)
-                    if p_rec:
-                        cuts_strip.append(Cut(right_x - kerf, y0, right_x - kerf, y0 + strip_h, Direction.VERTICAL))
-            # Нижний остаток
-            rem_W = W - (strip_h + kerf)
+
+            # Нижний остаток отделён первым горизонтальным резом,
+            # поэтому его можно обрабатывать после правого остатка.
             if rem_W > 0:
                 p_rec, c_rec = self._fill_rectangle(
                     x0, y0 + strip_h + kerf, L, rem_W, batches, kerf,
@@ -255,11 +264,20 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 )
                 placements_strip.extend(p_rec)
                 cuts_strip.extend(c_rec)
-                cuts_strip.append(Cut(x0, y0 + strip_h, x0 + L, y0 + strip_h, Direction.HORIZONTAL))
+
         else:  # VERTICAL
             bottom_y = edge
             strip_w = size
-            # Нижний остаток
+
+            # Сначала отделяем вертикальную полосу от правого остатка.
+            rem_L = L - (strip_w + kerf)
+            if rem_L > 0:
+                cuts_strip.append(
+                    Cut(x0 + strip_w, y0, x0 + strip_w, y0 + W, Direction.VERTICAL)
+                )
+
+            # Внутренние горизонтальные резы полосы уже отделяют
+            # детали друг от друга и, при наличии, нижний остаток.
             if self.use_remnants and bottom_y < y0 + W:
                 rem_W = (y0 + W) - bottom_y
                 if rem_W > 0:
@@ -269,10 +287,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                     )
                     placements_strip.extend(p_rec)
                     cuts_strip.extend(c_rec)
-                    if p_rec:
-                        cuts_strip.append(Cut(x0, bottom_y - kerf, x0 + strip_w, bottom_y - kerf, Direction.HORIZONTAL))
-            # Правый остаток
-            rem_L = L - (strip_w + kerf)
+
+            # Правый остаток отделён первым вертикальным резом.
             if rem_L > 0:
                 p_rec, c_rec = self._fill_rectangle(
                     x0 + strip_w + kerf, y0, rem_L, W, batches, kerf,
@@ -280,7 +296,6 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 )
                 placements_strip.extend(p_rec)
                 cuts_strip.extend(c_rec)
-                cuts_strip.append(Cut(x0 + strip_w, y0, x0 + strip_w, y0 + W, Direction.VERTICAL))
 
         return placements_strip, cuts_strip
 
