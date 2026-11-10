@@ -87,7 +87,7 @@ def test_accounts_for_trim_offsets():
         kerf=2,
         trim_left=5,
         trim_right=5,
-        trim_top=4,
+        trim_top=7,
         trim_bottom=3,
     )
 
