@@ -136,8 +136,9 @@ def test_advanced_strategy_preserves_randomized_layout_invariants(
         strip_sorting=strip_sorting,
         use_remnants=use_remnants,
     )
-    layouts = strategy.layout([stock], parts, config)
+    layouts = []
     try:
+        layouts = strategy.layout([stock], parts, config)
         assert_random_result_is_consistent(strategy, layouts, stock, parts, config)
     except (AssertionError, ValueError) as error:
         raise AssertionError(
