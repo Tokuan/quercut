@@ -94,7 +94,9 @@ def test_accounts_for_trim_offsets():
     assert validate_guillotine_layout(layout, config) is True
 
 
-def test_rejects_kerf_that_runs_outside_the_available_region():
+def test_accepts_kerf_that_exits_through_the_far_edge():
+    # The saw can run out through the sheet edge. The final 1 mm sliver
+    # is consumed by the 2 mm kerf, leaving no far-side terminal region.
     layout = CutLayout(
         layout_id=1,
         stock_length=100,
@@ -103,5 +105,4 @@ def test_rejects_kerf_that_runs_outside_the_available_region():
         cuts=[Cut(99, 0, 99, 50, Direction.VERTICAL)],
     )
 
-    with pytest.raises(ValueError, match="kerf extends beyond"):
-        validate_guillotine_layout(layout, CutConfig(kerf=2))
+    assert validate_guillotine_layout(layout, CutConfig(kerf=2)) is True
