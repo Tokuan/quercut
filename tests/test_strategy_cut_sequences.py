@@ -34,14 +34,14 @@ def test_basic_strategies_emit_executable_cut_sequences(strategy_factory):
 @pytest.mark.parametrize(
     ("preferred_direction", "expected_first_cut"),
     [
-        ("horizontal", "vertical"),
-        ("vertical", "horizontal"),
+        ("horizontal", "horizontal"),
+        ("vertical", "vertical"),
     ],
 )
-def test_advanced_strategy_emits_inner_cut_before_separating_first_strip(
+def test_advanced_strategy_separates_first_strip_before_inner_cuts(
     preferred_direction, expected_first_cut
 ):
-    """Characterize the ordering defect for either initial strip direction."""
+    """The parent strip-separating cut must be emitted before inner cuts."""
     stock = StockSheet(length=100, width=80)
     part = Part(
         label="panel",
@@ -63,10 +63,7 @@ def test_advanced_strategy_emits_inner_cut_before_separating_first_strip(
     assert layouts[0].cuts
     assert layouts[0].cuts[0].direction.name.lower() == expected_first_cut
 
-    # The first cut lies inside the initial strip, which has not yet
-    # been separated from the original sheet.
-    with pytest.raises(ValueError, match="currently available rectangle"):
-        validate_guillotine_layout(layouts[0], config)
+    assert validate_guillotine_layout(layouts[0], config)
 
 
 @pytest.mark.parametrize(
@@ -90,10 +87,10 @@ def test_advanced_strategy_emits_inner_cut_before_separating_first_strip(
         ),
     ],
 )
-def test_advanced_strategy_recurse_into_strip_remnant_before_separating_it(
+def test_advanced_strategy_separates_strip_remnant_before_recursive_cuts(
     preferred_direction, parts, expected_second_part_origin
 ):
-    """Ensure a recursive remnant is actually populated before checking its cuts."""
+    """A strip remnant must be separated before its recursive cuts are emitted."""
     stock = StockSheet(length=100, width=80)
     config = CutConfig(kerf=2)
     strategy = AdvancedGuillotineStrategy(
@@ -108,7 +105,4 @@ def test_advanced_strategy_recurse_into_strip_remnant_before_separating_it(
     origins = {(placement.x, placement.y) for placement in layouts[0].placements}
     assert expected_second_part_origin in origins
 
-    # A cut made inside the remnant is currently emitted before the cut
-    # that separates that remnant from its parent region.
-    with pytest.raises(ValueError, match="currently available rectangle"):
-        validate_guillotine_layout(layouts[0], config)
+    assert validate_guillotine_layout(layouts[0], config)
