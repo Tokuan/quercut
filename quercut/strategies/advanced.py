@@ -239,8 +239,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
             # После этого обе области становятся доступны для дальнейшего раскроя.
             rem_W = W - (strip_h + kerf)
             if rem_W > 0:
-                cuts_strip.append(
-                    Cut(x0, y0 + strip_h, x0 + L, y0 + strip_h, Direction.HORIZONTAL)
+                cuts_strip.insert(
+                    0, Cut(x0, y0 + strip_h, x0 + L, y0 + strip_h, Direction.HORIZONTAL)
                 )
 
             # Внутренние вертикальные резы уже отделяют детали полосы
@@ -272,8 +272,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
             # Сначала отделяем вертикальную полосу от правого остатка.
             rem_L = L - (strip_w + kerf)
             if rem_L > 0:
-                cuts_strip.append(
-                    Cut(x0 + strip_w, y0, x0 + strip_w, y0 + W, Direction.VERTICAL)
+                cuts_strip.insert(
+                    0, Cut(x0 + strip_w, y0, x0 + strip_w, y0 + W, Direction.VERTICAL)
                 )
 
             # Внутренние горизонтальные резы полосы уже отделяют
