@@ -44,9 +44,9 @@ def test_rejects_cut_that_is_not_full_span_of_a_current_region():
         validate_guillotine_layout(layout, CutConfig())
 
 
-def test_rejects_a_child_cut_before_the_cut_that_creates_its_region():
-    # The horizontal cut is only possible after the vertical cut creates
-    # the 40 mm-wide left region. Reversing the sequence must fail.
+def test_rejects_a_cut_sequence_that_uses_a_region_before_it_exists():
+    # The first cut spans the whole sheet. It splits the sheet into two
+    # regions, so the following full-height cut can no longer be executed.
     layout = CutLayout(
         layout_id=1,
         stock_length=100,
