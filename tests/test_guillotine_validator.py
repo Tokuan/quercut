@@ -1,0 +1,107 @@
+"""Tests for the independent ordered guillotine-cut simulator."""
+
+import pytest
+
+from quercut.models import Cut, CutConfig, CutLayout, Direction, PlacedPart
+from quercut.validation.guillotine import validate_guillotine_layout
+
+
+def placement(x, y, length, width):
+    return PlacedPart(
+        part_label="part", x=x, y=y, length=length, width=width,
+        global_index=1,
+    )
+
+
+def test_accepts_two_parts_from_a_real_ordered_cut_sequence():
+    layout = CutLayout(
+        layout_id=1,
+        stock_length=100,
+        stock_width=50,
+        placements=[
+            placement(0, 0, 40, 50),
+            placement(42, 0, 30, 50),
+        ],
+        cuts=[
+            Cut(40, 0, 40, 50, Direction.VERTICAL),
+            Cut(72, 0, 72, 50, Direction.VERTICAL),
+        ],
+    )
+
+    assert validate_guillotine_layout(layout, CutConfig(kerf=2)) is True
+
+
+def test_rejects_cut_that_is_not_full_span_of_a_current_region():
+    layout = CutLayout(
+        layout_id=1,
+        stock_length=100,
+        stock_width=50,
+        placements=[placement(0, 0, 40, 50)],
+        cuts=[Cut(40, 5, 40, 45, Direction.VERTICAL)],
+    )
+
+    with pytest.raises(ValueError, match="currently available rectangle"):
+        validate_guillotine_layout(layout, CutConfig())
+
+
+def test_rejects_a_child_cut_before_the_cut_that_creates_its_region():
+    # The horizontal cut is only possible after the vertical cut creates
+    # the 40 mm-wide left region. Reversing the sequence must fail.
+    layout = CutLayout(
+        layout_id=1,
+        stock_length=100,
+        stock_width=80,
+        placements=[placement(0, 0, 40, 30)],
+        cuts=[
+            Cut(0, 30, 100, 30, Direction.HORIZONTAL),
+            Cut(40, 0, 40, 80, Direction.VERTICAL),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="currently available rectangle"):
+        validate_guillotine_layout(layout, CutConfig())
+
+
+def test_rejects_placement_without_cuts_separating_it_from_waste():
+    layout = CutLayout(
+        layout_id=1,
+        stock_length=100,
+        stock_width=50,
+        placements=[placement(0, 0, 40, 50)],
+        cuts=[],
+    )
+
+    with pytest.raises(ValueError, match="terminal rectangle"):
+        validate_guillotine_layout(layout, CutConfig())
+
+
+def test_accounts_for_trim_offsets():
+    layout = CutLayout(
+        layout_id=1,
+        stock_length=110,
+        stock_width=60,
+        placements=[placement(5, 3, 40, 50)],
+        cuts=[Cut(45, 3, 45, 53, Direction.VERTICAL)],
+    )
+    config = CutConfig(
+        kerf=2,
+        trim_left=5,
+        trim_right=5,
+        trim_top=4,
+        trim_bottom=3,
+    )
+
+    assert validate_guillotine_layout(layout, config) is True
+
+
+def test_rejects_kerf_that_runs_outside_the_available_region():
+    layout = CutLayout(
+        layout_id=1,
+        stock_length=100,
+        stock_width=50,
+        placements=[placement(0, 0, 99, 50)],
+        cuts=[Cut(99, 0, 99, 50, Direction.VERTICAL)],
+    )
+
+    with pytest.raises(ValueError, match="kerf extends beyond"):
+        validate_guillotine_layout(layout, CutConfig(kerf=2))
