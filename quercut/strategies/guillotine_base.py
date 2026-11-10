@@ -158,27 +158,42 @@ class GuillotineBaseStrategy:
             )
         )
 
-    def _extract_cuts(self, node: Optional[CutNode], cuts_list: List[Cut]):
+    def _extract_cuts(self, node: Optional[CutNode], cuts_list: List[Cut], strategy: str):
+        """Извлекает резы в порядке, допустимом для их физического выполнения."""
         if not node:
             return
-        if node.vertical_cut:
-            cuts_list.append(Cut(
-                x1=node.vertical_cut['x'],
-                y1=node.vertical_cut['y1'],
-                x2=node.vertical_cut['x'],
-                y2=node.vertical_cut['y2'],
-                direction=Direction.VERTICAL
-            ))
-        if node.horizontal_cut:
-            cuts_list.append(Cut(
-                x1=node.horizontal_cut['x1'],
-                y1=node.horizontal_cut['y'],
-                x2=node.horizontal_cut['x2'],
-                y2=node.horizontal_cut['y'],
-                direction=Direction.HORIZONTAL
-            ))
-        self._extract_cuts(node.right, cuts_list)
-        self._extract_cuts(node.down, cuts_list)
+
+        ordered_cuts = (
+            (node.vertical_cut, node.horizontal_cut)
+            if strategy == "rip"
+            else (node.horizontal_cut, node.vertical_cut)
+        )
+
+        for cut in ordered_cuts:
+            if not cut:
+                continue
+            if cut["type"] == "vertical":
+                cuts_list.append(Cut(
+                    x1=cut["x"],
+                    y1=cut["y1"],
+                    x2=cut["x"],
+                    y2=cut["y2"],
+                    direction=Direction.VERTICAL
+                ))
+            else:
+                cuts_list.append(Cut(
+                    x1=cut["x1"],
+                    y1=cut["y"],
+                    x2=cut["x2"],
+                    y2=cut["y"],
+                    direction=Direction.HORIZONTAL
+                ))
+
+        # Оба реза текущего узла должны быть выполнены до резов в его
+        # дочерних областях. Порядок обхода этих областей не влияет на
+        # доступность резов: они уже отделены родительскими резами.
+        self._extract_cuts(node.right, cuts_list, strategy)
+        self._extract_cuts(node.down, cuts_list, strategy)
 
     def _pack_single_sheet(self, sheet_w: int, sheet_h: int, batches: List[PartBatch], kerf: int, trim: int, strategy: str):
         """Упаковывает один лист, возвращает обновлённые партии, placements, cuts."""
@@ -250,7 +265,7 @@ class GuillotineBaseStrategy:
                 global_index=pp.global_index
             ))
         cuts = []
-        self._extract_cuts(sheet.root, cuts)
+        self._extract_cuts(sheet.root, cuts, strategy)
         for c in cuts:
             c.x1 += trim
             c.y1 += trim
