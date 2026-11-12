@@ -184,3 +184,38 @@ def test_advanced_strip_directions_respect_kerf_remainder_rule(
     assert bool(placements) is expected_placed
     for layout in layouts:
         assert validate_guillotine_layout(layout, config)
+
+
+
+@pytest.mark.parametrize(
+    ("remaining", "expected_placed"),
+    [(0, True), (1, False), (2, False), (3, True)],
+)
+def test_advanced_horizontal_strip_requires_kerf_safe_lower_region(
+    remaining, expected_placed
+):
+    stock = StockSheet(length=100, width=50)
+    part = Part(
+        label="panel",
+        length=100,
+        width=50 - remaining,
+        quantity=1,
+        rotatable=False,
+        global_index=1,
+    )
+    config = CutConfig(kerf=2)
+    strategy = AdvancedGuillotineStrategy(
+        preferred_direction="horizontal",
+        use_remnants=True,
+    )
+
+    layouts = strategy.layout([stock], [part], config)
+    placements = [
+        placement
+        for layout in layouts
+        for placement in layout.placements
+    ]
+
+    assert bool(placements) is expected_placed
+    for layout in layouts:
+        assert validate_guillotine_layout(layout, config)
