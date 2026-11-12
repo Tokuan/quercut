@@ -109,32 +109,31 @@ def validate_guillotine_layout(
         extent = region.length if axis == "x" else region.width
         offset = coordinate - start
 
-        # A line exactly on the far edge is redundant: no material remains
-        # beyond it for a kerf. Strategies currently emit such edge cuts.
-        if eq(offset, extent):
-            continue
         if offset <= tolerance:
             raise ValueError(f"Cut {cut_number} starts at the near edge of its region")
-        # The saw may run out through the far edge of the sheet/region.
-        # In that case the remaining sliver is consumed by the kerf; there
-        # is no far-side region to keep.
+
+        remaining_after_kerf = extent - offset - kerf
+        if remaining_after_kerf <= tolerance:
+            raise ValueError(
+                f"Cut {cut_number} leaves no positive material beyond the kerf; "
+                "the far-side region must be wider than the kerf"
+            )
+
         regions.pop(region_index)
         if axis == "x":
             left_length = offset
-            right_x = min(coordinate + kerf, region.x + region.length)
-            right_length = region.x + region.length - right_x
+            right_x = coordinate + kerf
+            right_length = remaining_after_kerf
             if left_length > tolerance:
                 regions.append(_Region(region.x, region.y, left_length, region.width))
-            if right_length > tolerance:
-                regions.append(_Region(right_x, region.y, right_length, region.width))
+            regions.append(_Region(right_x, region.y, right_length, region.width))
         else:
             lower_width = offset
-            upper_y = min(coordinate + kerf, region.y + region.width)
-            upper_width = region.y + region.width - upper_y
+            upper_y = coordinate + kerf
+            upper_width = remaining_after_kerf
             if lower_width > tolerance:
                 regions.append(_Region(region.x, region.y, region.length, lower_width))
-            if upper_width > tolerance:
-                regions.append(_Region(region.x, upper_y, region.length, upper_width))
+            regions.append(_Region(region.x, upper_y, region.length, upper_width))
 
     unmatched_regions = list(regions)
     for placement_number, placement in enumerate(layout.placements, start=1):
