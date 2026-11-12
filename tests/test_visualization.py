@@ -105,3 +105,17 @@ def test_generate_svg_handles_empty_layouts():
     assert generate_svg([], CutConfig()) == (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1" width="1"></svg>'
     )
+
+
+
+def test_horizontal_free_segments_use_the_positive_y_kerf_side():
+    cut = Cut(0, 20, 50, 20, Direction.HORIZONTAL)
+    placements = [
+        PlacedPart("below", x=0, y=0, length=10, width=20),
+        PlacedPart("above", x=20, y=22, length=10, width=20),
+    ]
+
+    assert _find_free_segments_along_cut(cut, placements, kerf=2) == [
+        {"start": 10, "end": 20},
+        {"start": 30, "end": 50},
+    ]
