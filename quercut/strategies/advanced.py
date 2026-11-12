@@ -155,7 +155,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
         if first_strip_size is not None:
             if first_direction == Direction.HORIZONTAL:
                 strip_h = first_strip_size
-                if strip_h <= W:
+                if self._has_valid_remainder(W, strip_h, kerf):
                     test_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
                     placements, cuts, right_x = self._fill_horizontal_strip(
                         x0, y0, L, strip_h, test_batches, kerf
@@ -168,7 +168,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                         )
             else:  # VERTICAL
                 strip_w = first_strip_size
-                if strip_w <= L:
+                if self._has_valid_remainder(L, strip_w, kerf):
                     test_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
                     placements, cuts, bottom_y = self._fill_vertical_strip(
                         x0, y0, strip_w, W, test_batches, kerf
@@ -241,7 +241,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
             # Сам рез нужен даже тогда, когда пропил полностью поглощает
             # остаток по ширине. Проверяем наличие материала до пропила,
             # а не размер материала после вычета kerf.
-            if strip_h < W:
+            if rem_W > 0:
                 cuts_strip.insert(
                     0, Cut(x0, y0 + strip_h, x0 + L, y0 + strip_h, Direction.HORIZONTAL)
                 )
@@ -276,7 +276,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
             rem_L = L - (strip_w + kerf)
             # Аналогично: отделяющий рез требуется, если за полосой
             # есть материал, даже когда весь остаток уходит в пропил.
-            if strip_w < L:
+            if rem_L > 0:
                 cuts_strip.insert(
                     0, Cut(x0 + strip_w, y0, x0 + strip_w, y0 + W, Direction.VERTICAL)
                 )
@@ -408,11 +408,21 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 if b.remaining == 0:
                     continue
                 p = b.part
-                if p.width == strip_h and p.length <= (x0 + strip_w - x):
+                available = x0 + strip_w - x
+                if (
+                    p.width == strip_h
+                    and p.length <= available
+                    and self._has_valid_remainder(available, p.length, kerf)
+                ):
                     if p.length > best_len:
                         best = (b, False, p.length, p.width)
                         best_len = p.length
-                elif p.rotatable and p.length == strip_h and p.width <= (x0 + strip_w - x):
+                elif (
+                    p.rotatable
+                    and p.length == strip_h
+                    and p.width <= available
+                    and self._has_valid_remainder(available, p.width, kerf)
+                ):
                     if p.width > best_len:
                         best = (b, True, p.width, p.length)
                         best_len = p.width
@@ -448,11 +458,21 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 if b.remaining == 0:
                     continue
                 p = b.part
-                if p.length == strip_w and p.width <= (y0 + strip_h - y):
+                available = y0 + strip_h - y
+                if (
+                    p.length == strip_w
+                    and p.width <= available
+                    and self._has_valid_remainder(available, p.width, kerf)
+                ):
                     if p.width > best_len:
                         best = (b, False, p.length, p.width)
                         best_len = p.width
-                elif p.rotatable and p.width == strip_w and p.length <= (y0 + strip_h - y):
+                elif (
+                    p.rotatable
+                    and p.width == strip_w
+                    and p.length <= available
+                    and self._has_valid_remainder(available, p.length, kerf)
+                ):
                     if p.length > best_len:
                         best = (b, True, p.width, p.length)
                         best_len = p.length
