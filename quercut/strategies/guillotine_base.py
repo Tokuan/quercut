@@ -26,6 +26,15 @@ class Sheet:
 class GuillotineBaseStrategy:
     """Базовый класс для стратегий гильотинного раскроя на основе CutNode."""
 
+    @staticmethod
+    def _has_valid_remainder(region_size: float, part_size: float, kerf: float) -> bool:
+        """A part may leave either no remainder or material wider than the kerf."""
+        remainder = region_size - part_size
+        tolerance = 1e-9
+        return remainder >= -tolerance and (
+            abs(remainder) <= tolerance or remainder > kerf + tolerance
+        )
+
     def _calculate_score(self, node: CutNode, part_w: int, part_h: int) -> float:
         waste_area = (node.width * node.height) - (part_w * part_h)
         remaining_w = node.width - part_w
@@ -49,7 +58,12 @@ class GuillotineBaseStrategy:
 
         for node in free_nodes:
             # Без поворота
-            if part.length <= node.width and part.width <= node.height:
+            if (
+                part.length <= node.width
+                and part.width <= node.height
+                and self._has_valid_remainder(node.width, part.length, sheet.kerf)
+                and self._has_valid_remainder(node.height, part.width, sheet.kerf)
+            ):
                 score = self._calculate_score(node, part.length, part.width)
                 if best_score is None or score < best_score:
                     best_score = score
@@ -59,7 +73,12 @@ class GuillotineBaseStrategy:
                     best_h = part.width
             # С поворотом
             if part.rotatable and part.length != part.width:
-                if part.width <= node.width and part.length <= node.height:
+                if (
+                    part.width <= node.width
+                    and part.length <= node.height
+                    and self._has_valid_remainder(node.width, part.width, sheet.kerf)
+                    and self._has_valid_remainder(node.height, part.length, sheet.kerf)
+                ):
                     score = self._calculate_score(node, part.width, part.length) + 1
                     if best_score is None or score < best_score:
                         best_score = score
@@ -94,57 +113,64 @@ class GuillotineBaseStrategy:
         node.part = part
         k = sheet.kerf
 
+        remaining_w = node.width - width
+        remaining_h = node.height - height
+
         if strategy == "rip":
-            # Сначала вертикальный рез, потом горизонтальный
-            node.vertical_cut = {
-                "type": "vertical",
-                "x": node.x + width,
-                "y1": node.y,
-                "y2": node.y + node.height
-            }
-            node.horizontal_cut = {
-                "type": "horizontal",
-                "y": node.y + height,
-                "x1": node.x,
-                "x2": node.x + width
-            }
-            node.right = CutNode(
-                node.x + width + k,
-                node.y,
-                node.width - width - k,
-                node.height
-            )
-            node.down = CutNode(
-                node.x,
-                node.y + height + k,
-                width,
-                node.height - height - k
-            )
+            # Сначала вертикальный рез, потом горизонтальный.
+            if remaining_w > 0:
+                node.vertical_cut = {
+                    "type": "vertical",
+                    "x": node.x + width,
+                    "y1": node.y,
+                    "y2": node.y + node.height
+                }
+                node.right = CutNode(
+                    node.x + width + k,
+                    node.y,
+                    remaining_w - k,
+                    node.height
+                )
+            if remaining_h > 0:
+                node.horizontal_cut = {
+                    "type": "horizontal",
+                    "y": node.y + height,
+                    "x1": node.x,
+                    "x2": node.x + width
+                }
+                node.down = CutNode(
+                    node.x,
+                    node.y + height + k,
+                    width,
+                    remaining_h - k
+                )
         else:  # cross
-            node.horizontal_cut = {
-                "type": "horizontal",
-                "y": node.y + height,
-                "x1": node.x,
-                "x2": node.x + node.width
-            }
-            node.vertical_cut = {
-                "type": "vertical",
-                "x": node.x + width,
-                "y1": node.y,
-                "y2": node.y + height
-            }
-            node.down = CutNode(
-                node.x,
-                node.y + height + k,
-                node.width,
-                node.height - height - k
-            )
-            node.right = CutNode(
-                node.x + width + k,
-                node.y,
-                node.width - width - k,
-                height
-            )
+            if remaining_h > 0:
+                node.horizontal_cut = {
+                    "type": "horizontal",
+                    "y": node.y + height,
+                    "x1": node.x,
+                    "x2": node.x + node.width
+                }
+                node.down = CutNode(
+                    node.x,
+                    node.y + height + k,
+                    node.width,
+                    remaining_h - k
+                )
+            if remaining_w > 0:
+                node.vertical_cut = {
+                    "type": "vertical",
+                    "x": node.x + width,
+                    "y1": node.y,
+                    "y2": node.y + height
+                }
+                node.right = CutNode(
+                    node.x + width + k,
+                    node.y,
+                    remaining_w - k,
+                    height
+                )
 
         sheet.placed_parts.append(
             PlacedPart(
