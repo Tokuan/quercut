@@ -185,6 +185,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
             sizes = self._collect_sizes(batches, W, orientation='horizontal')
             sizes = self._sort_sizes(sizes, batches, L, W, orientation='horizontal')
             for h in sizes:
+                if not self._has_valid_remainder(W, h, kerf):
+                    continue
                 test_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
                 placements, cuts, right_x = self._fill_horizontal_strip(
                     x0, y0, L, h, test_batches, kerf
@@ -199,6 +201,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
             sizes = self._collect_sizes(batches, L, orientation='vertical')
             sizes = self._sort_sizes(sizes, batches, L, W, orientation='vertical')
             for w in sizes:
+                if not self._has_valid_remainder(L, w, kerf):
+                    continue
                 test_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
                 placements, cuts, bottom_y = self._fill_vertical_strip(
                     x0, y0, w, W, test_batches, kerf
@@ -238,9 +242,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
             # Сначала отделяем горизонтальную полосу от нижнего остатка.
             # После этого обе области становятся доступны для дальнейшего раскроя.
             rem_W = W - (strip_h + kerf)
-            # Сам рез нужен даже тогда, когда пропил полностью поглощает
-            # остаток по ширине. Проверяем наличие материала до пропила,
-            # а не размер материала после вычета kerf.
+            # Разделительный рез допустим только при положительном остатке
+            # материала после пропила.
             if rem_W > 0:
                 cuts_strip.insert(
                     0, Cut(x0, y0 + strip_h, x0 + L, y0 + strip_h, Direction.HORIZONTAL)
@@ -274,8 +277,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
 
             # Сначала отделяем вертикальную полосу от правого остатка.
             rem_L = L - (strip_w + kerf)
-            # Аналогично: отделяющий рез требуется, если за полосой
-            # есть материал, даже когда весь остаток уходит в пропил.
+            # Разделительный рез допустим только при положительном остатке
+            # материала после пропила.
             if rem_L > 0:
                 cuts_strip.insert(
                     0, Cut(x0 + strip_w, y0, x0 + strip_w, y0 + W, Direction.VERTICAL)
