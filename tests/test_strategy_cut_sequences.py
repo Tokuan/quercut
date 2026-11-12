@@ -106,3 +106,45 @@ def test_advanced_strategy_separates_strip_remnant_before_recursive_cuts(
     assert expected_second_part_origin in origins
 
     assert validate_guillotine_layout(layouts[0], config)
+
+
+
+@pytest.mark.parametrize(
+    "strategy_factory",
+    [
+        SimpleRipStrategy,
+        SimpleCrossStrategy,
+        OptimalGuillotineStrategy,
+        AdvancedGuillotineStrategy,
+    ],
+)
+@pytest.mark.parametrize(
+    ("remaining", "expected_placed"),
+    [(0, True), (1, False), (2, False), (3, True)],
+)
+def test_strategies_only_place_parts_with_kerf_safe_remainders(
+    strategy_factory, remaining, expected_placed
+):
+    """A trailing region must be empty or wider than the kerf."""
+    stock = StockSheet(length=100, width=50)
+    part = Part(
+        label="panel",
+        length=100 - remaining,
+        width=50,
+        quantity=1,
+        rotatable=False,
+        global_index=1,
+    )
+    config = CutConfig(kerf=2)
+    strategy = strategy_factory()
+
+    layouts = strategy.layout([stock], [part], config)
+    placements = [
+        placement
+        for layout in layouts
+        for placement in layout.placements
+    ]
+
+    assert bool(placements) is expected_placed
+    for layout in layouts:
+        assert validate_guillotine_layout(layout, config)
