@@ -440,9 +440,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 rotated=rot,
                 global_index=b.part.global_index
             ))
-            # Отделяющий рез нужен и тогда, когда ширина пропила выходит
-            # за дальнюю границу полосы: остаточная узкая полоска будет
-            # поглощена пропилом. Важно не терять такой последний рез.
+            # Рез уже проверен по правилу: после пропила должен остаться
+            # положительный участок материала.
             if x + lx < x0 + strip_w:
                 cuts.append(Cut(
                     x + lx, y0, x + lx, y0 + strip_h, Direction.VERTICAL
@@ -490,8 +489,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 rotated=rot,
                 global_index=b.part.global_index
             ))
-            # Аналогично горизонтальному заполнению: последний рез может
-            # выйти за край полосы, поглотив оставшийся узкий участок.
+            # После пропила за резом обязательно должен оставаться
+            # положительный участок материала.
             if y + wy < y0 + strip_h:
                 cuts.append(Cut(
                     x0, y + wy, x0 + strip_w, y + wy, Direction.HORIZONTAL
