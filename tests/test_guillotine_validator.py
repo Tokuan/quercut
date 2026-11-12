@@ -94,15 +94,56 @@ def test_accounts_for_trim_offsets():
     assert validate_guillotine_layout(layout, config) is True
 
 
-def test_accepts_kerf_that_exits_through_the_far_edge():
-    # The saw can run out through the sheet edge. The final 1 mm sliver
-    # is consumed by the 2 mm kerf, leaving no far-side terminal region.
+@pytest.mark.parametrize("remaining", [1, 2])
+def test_rejects_cut_when_far_side_material_does_not_exceed_kerf(remaining):
+    kerf = 2
+    cut_x = 100 - remaining
     layout = CutLayout(
         layout_id=1,
         stock_length=100,
         stock_width=50,
-        placements=[placement(0, 0, 99, 50)],
-        cuts=[Cut(99, 0, 99, 50, Direction.VERTICAL)],
+        placements=[placement(0, 0, cut_x, 50)],
+        cuts=[Cut(cut_x, 0, cut_x, 50, Direction.VERTICAL)],
+    )
+
+    with pytest.raises(ValueError, match="material beyond the kerf"):
+        validate_guillotine_layout(layout, CutConfig(kerf=kerf))
+
+
+def test_accepts_cut_when_material_after_kerf_is_positive():
+    kerf = 2
+    cut_x = 97  # 3 mm remain before the kerf; 1 mm remains after it.
+    layout = CutLayout(
+        layout_id=1,
+        stock_length=100,
+        stock_width=50,
+        placements=[placement(0, 0, cut_x, 50)],
+        cuts=[Cut(cut_x, 0, cut_x, 50, Direction.VERTICAL)],
+    )
+
+    assert validate_guillotine_layout(layout, CutConfig(kerf=kerf)) is True
+
+
+def test_accepts_part_flush_with_sheet_edge_without_an_extra_cut():
+    layout = CutLayout(
+        layout_id=1,
+        stock_length=100,
+        stock_width=50,
+        placements=[placement(0, 0, 100, 50)],
+        cuts=[],
     )
 
     assert validate_guillotine_layout(layout, CutConfig(kerf=2)) is True
+
+
+def test_rejects_redundant_cut_exactly_on_region_edge():
+    layout = CutLayout(
+        layout_id=1,
+        stock_length=100,
+        stock_width=50,
+        placements=[placement(0, 0, 100, 50)],
+        cuts=[Cut(100, 0, 100, 50, Direction.VERTICAL)],
+    )
+
+    with pytest.raises(ValueError, match="material beyond the kerf"):
+        validate_guillotine_layout(layout, CutConfig(kerf=2))
