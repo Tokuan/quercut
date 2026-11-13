@@ -15,136 +15,61 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
         self.use_remnants = use_remnants
 
     def layout(self, stocks, parts, config):
-        batches = [PartBatch(part=p, remaining=p.quantity) for p in parts]
-        layouts = []
-        layout_id_ord = 1
+        return self._layout_sheets(stocks, parts, config, self._pack_sheet_with_strips)
 
-        if not stocks:
-            raise ValueError("Нет листов")
+    def _pack_sheet_with_strips(self, usable_l, usable_w, batches, config):
+        """Упаковывает один лист: перебирает первые полосы и оставляет вариант
+        с минимумом неразмещённых деталей, затем с минимумом отхода."""
+        best_placements = None
+        best_cuts = None
+        best_temp_batches = None
+        best_remaining = None
+        best_waste = float('inf')
 
-        # Находим шаблон для неограниченных листов
-        unlimited_template = None
-        for stock in stocks:
-            if stock.is_unlimited:
-                unlimited_template = stock
-                break
+        # Горизонтальные полосы (если разрешено)
+        if self.preferred_direction in ("horizontal", "both"):
+            heights = self._collect_sizes(batches, usable_w, orientation='horizontal')
+            heights = self._sort_sizes(heights, batches, usable_l, usable_w, orientation='horizontal')
+            for h in heights:
+                temp_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
+                placements, cuts = self._fill_rectangle(
+                    0, 0, usable_l, usable_w, temp_batches, config.kerf,
+                    first_direction=Direction.HORIZONTAL, first_strip_size=h
+                )
+                if placements:
+                    remaining = sum(b.remaining for b in temp_batches)
+                    waste = usable_l * usable_w - sum(p.length * p.width for p in placements)
+                    if best_remaining is None or remaining < best_remaining or (remaining == best_remaining and waste < best_waste):
+                        best_remaining = remaining
+                        best_waste = waste
+                        best_placements = placements
+                        best_cuts = cuts
+                        best_temp_batches = temp_batches
 
-        # Очередь листов
-        stock_queue = list(stocks)
+        # Вертикальные полосы (если разрешено)
+        if self.preferred_direction in ("vertical", "both"):
+            widths = self._collect_sizes(batches, usable_l, orientation='vertical')
+            widths = self._sort_sizes(widths, batches, usable_l, usable_w, orientation='vertical')
+            for w in widths:
+                temp_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
+                placements, cuts = self._fill_rectangle(
+                    0, 0, usable_l, usable_w, temp_batches, config.kerf,
+                    first_direction=Direction.VERTICAL, first_strip_size=w
+                )
+                if placements:
+                    remaining = sum(b.remaining for b in temp_batches)
+                    waste = usable_l * usable_w - sum(p.length * p.width for p in placements)
+                    if best_remaining is None or remaining < best_remaining or (remaining == best_remaining and waste < best_waste):
+                        best_remaining = remaining
+                        best_waste = waste
+                        best_placements = placements
+                        best_cuts = cuts
+                        best_temp_batches = temp_batches
 
-        while any(b.remaining > 0 for b in batches):
-            if not stock_queue:
-                if unlimited_template is not None:
-                    # Создаём новый неограниченный лист
-                    stock_queue.append(StockSheet(
-                        unlimited_template.length,
-                        unlimited_template.width,
-                        unlimited_template.label,
-                        is_unlimited=True
-                    ))
-                else:
-                    # Листов больше нет — выходим
-                    break
+        if best_placements is None:
+            return batches, [], []
 
-            stock = stock_queue.pop(0)
-
-            trim_left = config.trim_left
-            trim_right = config.trim_right
-            trim_top = config.trim_top
-            trim_bottom = config.trim_bottom
-            usable_l = stock.length - trim_left - trim_right
-            usable_w = stock.width - trim_top - trim_bottom
-
-            if usable_l <= 0 or usable_w <= 0:
-                continue
-
-            # Перебираем первые резы и выбираем лучший
-            best_placements = None
-            best_cuts = None
-            best_remaining = None
-            best_waste = float('inf')
-            best_temp_batches = None
-
-            # Горизонтальные полосы (если разрешено)
-            if self.preferred_direction in ("horizontal", "both"):
-                heights = self._collect_sizes(batches, usable_w, orientation='horizontal')
-                heights = self._sort_sizes(heights, batches, usable_l, usable_w, orientation='horizontal')
-                for h in heights:
-                    temp_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
-                    placements, cuts = self._fill_rectangle(
-                        0, 0, usable_l, usable_w, temp_batches, config.kerf,
-                        first_direction=Direction.HORIZONTAL, first_strip_size=h
-                    )
-                    if placements:
-                        remaining = sum(b.remaining for b in temp_batches)
-                        waste = usable_l * usable_w - sum(p.length * p.width for p in placements)
-                        if best_remaining is None or remaining < best_remaining or (remaining == best_remaining and waste < best_waste):
-                            best_remaining = remaining
-                            best_waste = waste
-                            best_placements = placements
-                            best_cuts = cuts
-                            best_temp_batches = temp_batches
-
-            # Вертикальные полосы (если разрешено)
-            if self.preferred_direction in ("vertical", "both"):
-                widths = self._collect_sizes(batches, usable_l, orientation='vertical')
-                widths = self._sort_sizes(widths, batches, usable_l, usable_w, orientation='vertical')
-                for w in widths:
-                    temp_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
-                    placements, cuts = self._fill_rectangle(
-                        0, 0, usable_l, usable_w, temp_batches, config.kerf,
-                        first_direction=Direction.VERTICAL, first_strip_size=w
-                    )
-                    if placements:
-                        remaining = sum(b.remaining for b in temp_batches)
-                        waste = usable_l * usable_w - sum(p.length * p.width for p in placements)
-                        if best_remaining is None or remaining < best_remaining or (remaining == best_remaining and waste < best_waste):
-                            best_remaining = remaining
-                            best_waste = waste
-                            best_placements = placements
-                            best_cuts = cuts
-                            best_temp_batches = temp_batches
-
-            if best_placements is None:
-                continue
-
-            for p in best_placements:
-                p.x += trim_left
-                p.y += trim_bottom
-            for c in best_cuts:
-                c.x1 += trim_left
-                c.y1 += trim_bottom
-                c.x2 += trim_left
-                c.y2 += trim_bottom
-
-            for i, b in enumerate(batches):
-                b.remaining = best_temp_batches[i].remaining
-
-            layouts.append(CutLayout(
-                layout_id=layout_id_ord,
-                stock_length=stock.length,
-                stock_width=stock.width,
-                repetition=1,
-                placements=best_placements,
-                cuts=best_cuts
-            ))
-            layout_id_ord += 1
-
-        # После цикла собираем неразмещённые детали
-        unplaced = []
-        for b in batches:
-            if b.remaining > 0:
-                unplaced.append({
-                    'label': b.part.label,
-                    'length': b.part.length,
-                    'width': b.part.width,
-                    'remaining': b.remaining
-                })
-
-        # Сохраняем неразмещённые детали в атрибут (опционально)
-        self.unplaced_parts = unplaced
-
-        return layouts
+        return best_temp_batches, best_placements, best_cuts
 
     def _fill_rectangle(self, x0, y0, L, W, batches, kerf, first_direction,
                         first_strip_size=None):
@@ -155,7 +80,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
         if first_strip_size is not None:
             if first_direction == Direction.HORIZONTAL:
                 strip_h = first_strip_size
-                if strip_h <= W:
+                if self._has_valid_remainder(W, strip_h, kerf):
                     test_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
                     placements, cuts, right_x = self._fill_horizontal_strip(
                         x0, y0, L, strip_h, test_batches, kerf
@@ -168,7 +93,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                         )
             else:  # VERTICAL
                 strip_w = first_strip_size
-                if strip_w <= L:
+                if self._has_valid_remainder(L, strip_w, kerf):
                     test_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
                     placements, cuts, bottom_y = self._fill_vertical_strip(
                         x0, y0, strip_w, W, test_batches, kerf
@@ -185,6 +110,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
             sizes = self._collect_sizes(batches, W, orientation='horizontal')
             sizes = self._sort_sizes(sizes, batches, L, W, orientation='horizontal')
             for h in sizes:
+                if not self._has_valid_remainder(W, h, kerf):
+                    continue
                 test_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
                 placements, cuts, right_x = self._fill_horizontal_strip(
                     x0, y0, L, h, test_batches, kerf
@@ -199,6 +126,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
             sizes = self._collect_sizes(batches, L, orientation='vertical')
             sizes = self._sort_sizes(sizes, batches, L, W, orientation='vertical')
             for w in sizes:
+                if not self._has_valid_remainder(L, w, kerf):
+                    continue
                 test_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
                 placements, cuts, bottom_y = self._fill_vertical_strip(
                     x0, y0, w, W, test_batches, kerf
@@ -211,7 +140,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
 
         # Если ничего не подошло – базовый упаковщик
         new_batches, placements, cuts = self._pack_single_sheet(
-            L, W, batches, kerf, 0, "rip"
+            L, W, batches, kerf, Direction.VERTICAL
         )
         for p in placements:
             p.x += x0
@@ -227,14 +156,26 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
 
     def _apply_strip_and_recurse(self, x0, y0, L, W, batches, kerf, direction, size,
                                  placements_strip, cuts_strip, edge, test_batches):
-        """Вспомогательный метод: обновляет партии, обрабатывает остатки, добавляет резы."""
+        """Обновляет партии и формирует резы в физически исполнимом порядке."""
         for i, b in enumerate(batches):
             b.remaining = test_batches[i].remaining
 
         if direction == Direction.HORIZONTAL:
             right_x = edge
             strip_h = size
-            # Правый остаток
+
+            # Сначала отделяем горизонтальную полосу от нижнего остатка.
+            # После этого обе области становятся доступны для дальнейшего раскроя.
+            rem_W = W - (strip_h + kerf)
+            # Разделительный рез допустим только при положительном остатке
+            # материала после пропила.
+            if rem_W > 0:
+                cuts_strip.insert(
+                    0, Cut(x0, y0 + strip_h, x0 + L, y0 + strip_h, Direction.HORIZONTAL)
+                )
+
+            # Внутренние вертикальные резы уже отделяют детали полосы
+            # друг от друга и, если он есть, от правого остатка.
             if self.use_remnants and right_x < x0 + L:
                 rem_L = (x0 + L) - right_x
                 if rem_L > 0:
@@ -244,10 +185,9 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                     )
                     placements_strip.extend(p_rec)
                     cuts_strip.extend(c_rec)
-                    if p_rec:
-                        cuts_strip.append(Cut(right_x - kerf, y0, right_x - kerf, y0 + strip_h, Direction.VERTICAL))
-            # Нижний остаток
-            rem_W = W - (strip_h + kerf)
+
+            # Нижний остаток отделён первым горизонтальным резом,
+            # поэтому его можно обрабатывать после правого остатка.
             if rem_W > 0:
                 p_rec, c_rec = self._fill_rectangle(
                     x0, y0 + strip_h + kerf, L, rem_W, batches, kerf,
@@ -255,11 +195,22 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 )
                 placements_strip.extend(p_rec)
                 cuts_strip.extend(c_rec)
-                cuts_strip.append(Cut(x0, y0 + strip_h, x0 + L, y0 + strip_h, Direction.HORIZONTAL))
+
         else:  # VERTICAL
             bottom_y = edge
             strip_w = size
-            # Нижний остаток
+
+            # Сначала отделяем вертикальную полосу от правого остатка.
+            rem_L = L - (strip_w + kerf)
+            # Разделительный рез допустим только при положительном остатке
+            # материала после пропила.
+            if rem_L > 0:
+                cuts_strip.insert(
+                    0, Cut(x0 + strip_w, y0, x0 + strip_w, y0 + W, Direction.VERTICAL)
+                )
+
+            # Внутренние горизонтальные резы полосы уже отделяют
+            # детали друг от друга и, при наличии, нижний остаток.
             if self.use_remnants and bottom_y < y0 + W:
                 rem_W = (y0 + W) - bottom_y
                 if rem_W > 0:
@@ -269,10 +220,8 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                     )
                     placements_strip.extend(p_rec)
                     cuts_strip.extend(c_rec)
-                    if p_rec:
-                        cuts_strip.append(Cut(x0, bottom_y - kerf, x0 + strip_w, bottom_y - kerf, Direction.HORIZONTAL))
-            # Правый остаток
-            rem_L = L - (strip_w + kerf)
+
+            # Правый остаток отделён первым вертикальным резом.
             if rem_L > 0:
                 p_rec, c_rec = self._fill_rectangle(
                     x0 + strip_w + kerf, y0, rem_L, W, batches, kerf,
@@ -280,7 +229,6 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 )
                 placements_strip.extend(p_rec)
                 cuts_strip.extend(c_rec)
-                cuts_strip.append(Cut(x0 + strip_w, y0, x0 + strip_w, y0 + W, Direction.VERTICAL))
 
         return placements_strip, cuts_strip
 
@@ -323,76 +271,44 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                         elif p.rotatable and p.width == size and p.length <= max_W:
                             total_area += p.length * p.width * b.remaining
                 return total_area
-            return sorted(sizes, key=area_for_size, reverse=True)
+            # Стабильный порядок при равной площади — по возрастанию размера.
+            return sorted(sizes, key=lambda s: (-area_for_size(s), s))
         else:
             return sorted(sizes, reverse=True)
 
-    def _select_strip_width(self, batches, max_L, max_W, kerf, vertical):
-        """Выбирает размер полосы, максимизирующий суммарную длину (для горизонтальной) или высоту (для вертикальной) деталей."""
-        best_size = None
-        best_total_length = 0
-        for b in batches:
-            if b.remaining == 0:
-                continue
-            p = b.part
-            if vertical:
-                sizes = [p.length]
-                if p.rotatable and p.width != p.length:
-                    sizes.append(p.width)
-                for size in sizes:
-                    if size > max_L:
-                        continue
-                    total_length = 0
-                    for b2 in batches:
-                        if b2.remaining == 0:
-                            continue
-                        p2 = b2.part
-                        # Деталь должна помещаться в полосу по длине и по высоте
-                        if p2.length == size and p2.width <= max_W:
-                            total_length += p2.width * b2.remaining
-                        elif p2.rotatable and p2.width == size and p2.length <= max_W:
-                            total_length += p2.length * b2.remaining
-                    if total_length > best_total_length:
-                        best_total_length = total_length
-                        best_size = size
-            else:  # horizontal
-                sizes = [p.width]
-                if p.rotatable and p.length != p.width:
-                    sizes.append(p.length)
-                for size in sizes:
-                    if size > max_W:
-                        continue
-                    total_length = 0
-                    for b2 in batches:
-                        if b2.remaining == 0:
-                            continue
-                        p2 = b2.part
-                        if p2.width == size and p2.length <= max_L:
-                            total_length += p2.length * b2.remaining
-                        elif p2.rotatable and p2.length == size and p2.width <= max_L:
-                            total_length += p2.width * b2.remaining
-                    if total_length > best_total_length:
-                        best_total_length = total_length
-                        best_size = size
-        return best_size
+    def _batch_order(self, batches):
+        """Порядок просмотра партий: сначала по длине, затем по ширине."""
+        return sorted(range(len(batches)),
+                      key=lambda i: (-batches[i].part.length, -batches[i].part.width))
 
     def _fill_horizontal_strip(self, x0, y0, strip_w, strip_h, batches, kerf):
         placements = []
         cuts = []
         x = x0
-        # Сортируем детали по убыванию длины
-        while x + kerf < x0 + strip_w:
+        order = self._batch_order(batches)
+        while x < x0 + strip_w:
             best = None
             best_len = 0
-            for b in batches:
+            for i in order:
+                b = batches[i]
                 if b.remaining == 0:
                     continue
                 p = b.part
-                if p.width == strip_h and p.length <= (x0 + strip_w - x):
+                available = x0 + strip_w - x
+                if (
+                    p.width == strip_h
+                    and p.length <= available
+                    and self._has_valid_remainder(available, p.length, kerf)
+                ):
                     if p.length > best_len:
                         best = (b, False, p.length, p.width)
                         best_len = p.length
-                elif p.rotatable and p.length == strip_h and p.width <= (x0 + strip_w - x):
+                elif (
+                    p.rotatable
+                    and p.length == strip_h
+                    and p.width <= available
+                    and self._has_valid_remainder(available, p.width, kerf)
+                ):
                     if p.width > best_len:
                         best = (b, True, p.width, p.length)
                         best_len = p.width
@@ -407,8 +323,12 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 rotated=rot,
                 global_index=b.part.global_index
             ))
-            if x + lx + kerf <= x0 + strip_w:
-                cuts.append(Cut(x + lx, y0, x + lx, y0 + wy, Direction.VERTICAL))
+            # Рез уже проверен по правилу: после пропила должен остаться
+            # положительный участок материала.
+            if x + lx < x0 + strip_w:
+                cuts.append(Cut(
+                    x + lx, y0, x + lx, y0 + strip_h, Direction.VERTICAL
+                ))
             x += lx + kerf
         return placements, cuts, x  # возвращаем x-координату конца последней детали
 
@@ -416,18 +336,30 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
         placements = []
         cuts = []
         y = y0
-        while y + kerf < y0 + strip_h:
+        order = self._batch_order(batches)
+        while y < y0 + strip_h:
             best = None
             best_len = 0
-            for b in batches:
+            for i in order:
+                b = batches[i]
                 if b.remaining == 0:
                     continue
                 p = b.part
-                if p.length == strip_w and p.width <= (y0 + strip_h - y):
+                available = y0 + strip_h - y
+                if (
+                    p.length == strip_w
+                    and p.width <= available
+                    and self._has_valid_remainder(available, p.width, kerf)
+                ):
                     if p.width > best_len:
                         best = (b, False, p.length, p.width)
                         best_len = p.width
-                elif p.rotatable and p.width == strip_w and p.length <= (y0 + strip_h - y):
+                elif (
+                    p.rotatable
+                    and p.width == strip_w
+                    and p.length <= available
+                    and self._has_valid_remainder(available, p.length, kerf)
+                ):
                     if p.length > best_len:
                         best = (b, True, p.width, p.length)
                         best_len = p.length
@@ -442,7 +374,11 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
                 rotated=rot,
                 global_index=b.part.global_index
             ))
-            if y + wy + kerf <= y0 + strip_h:
-                cuts.append(Cut(x0, y + wy, x0 + lx, y + wy, Direction.HORIZONTAL))
+            # После пропила за резом обязательно должен оставаться
+            # положительный участок материала.
+            if y + wy < y0 + strip_h:
+                cuts.append(Cut(
+                    x0, y + wy, x0 + strip_w, y + wy, Direction.HORIZONTAL
+                ))
             y += wy + kerf
         return placements, cuts, y

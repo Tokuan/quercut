@@ -25,9 +25,9 @@ def create_strategy(strategy: str = 'simple',
     """
 
     if strategy == 'simple':
-        if preferred_direction == 'vertical':
+        if preferred_direction == 'horizontal':
             return SimpleRipStrategy()
-        elif preferred_direction == 'horizontal':
+        elif preferred_direction == 'vertical':
             return SimpleCrossStrategy()
         else:  # 'both'
             return OptimalGuillotineStrategy()

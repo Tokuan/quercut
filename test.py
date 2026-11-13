@@ -19,8 +19,9 @@ BT	15
 @	Length	Width	Quantity	Grain direction
 S	1200	2000    1
 S	1600	2000    1
-S	3000	2000    1
+S	3000	2000    3
 @	Length	Width	Quantity	Grain direction	Label
+P   2400 250 6
 P   1800 320 3
 P	200	300	6	
 P	300	400	6	
@@ -42,12 +43,12 @@ if __name__ == "__main__":
 
     # Выберите стратегию:
     #strategy = SimpleRipStrategy()
-    strategy = SimpleCrossStrategy()
+    #strategy = SimpleCrossStrategy()
     #strategy = OptimalGuillotineStrategy()
     #strategy = AdvancedGuillotineStrategy()
     #strategy = AdvancedGuillotineStrategy(preferred_direction="horizontal", strip_sorting="desc")
     #strategy = AdvancedGuillotineStrategy(preferred_direction="vertical", strip_sorting="area")
-    #strategy = AdvancedGuillotineStrategy(preferred_direction=preferred_direction, strip_sorting=strip_sorting)
+    strategy = AdvancedGuillotineStrategy(preferred_direction=preferred_direction, strip_sorting=strip_sorting)
 
     layouts = strategy.layout(stocks, parts, config)
 
