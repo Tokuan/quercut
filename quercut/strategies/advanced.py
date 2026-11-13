@@ -215,7 +215,7 @@ class AdvancedGuillotineStrategy(Strategy, GuillotineBaseStrategy):
 
         # Если ничего не подошло – базовый упаковщик
         new_batches, placements, cuts = self._pack_single_sheet(
-            L, W, batches, kerf, 0, "rip"
+            L, W, batches, kerf, Direction.VERTICAL
         )
         for p in placements:
             p.x += x0

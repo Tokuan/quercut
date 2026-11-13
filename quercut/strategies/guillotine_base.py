@@ -1,5 +1,7 @@
-from typing import List, Optional, Tuple
-from ..models import Part, PartBatch, PlacedPart, Cut, Direction
+from typing import Callable, List, Optional, Tuple
+from ..models import (
+    StockSheet, Part, PartBatch, PlacedPart, Cut, CutConfig, CutLayout, Direction
+)
 
 class CutNode:
     def __init__(self, x, y, width, height):
@@ -24,7 +26,14 @@ class Sheet:
         self.placed_parts: List[PlacedPart] = []
 
 class GuillotineBaseStrategy:
-    """Базовый класс для стратегий гильотинного раскроя на основе CutNode."""
+    """Базовый класс гильотинных стратегий.
+
+    Детали разворачиваются в экземпляры и сортируются от больших к меньшим:
+    сначала по длине, затем по ширине. Заполнение рекурсивное: в текущий
+    прямоугольник ставится самая большая помещающаяся деталь, а остаток
+    распиливается на продолжение полосы (заполняется сразу же) и новый
+    свободный прямоугольник.
+    """
 
     @staticmethod
     def _has_valid_remainder(region_size: float, part_size: float, kerf: float) -> bool:
@@ -35,89 +44,75 @@ class GuillotineBaseStrategy:
             abs(remainder) <= tolerance or remainder > kerf + tolerance
         )
 
-    def _calculate_score(self, node: CutNode, part_w: int, part_h: int) -> float:
-        waste_area = (node.width * node.height) - (part_w * part_h)
-        remaining_w = node.width - part_w
-        remaining_h = node.height - part_h
+    @staticmethod
+    def _fits(node: CutNode, width: float, height: float, kerf: float) -> bool:
+        if width > node.width or height > node.height:
+            return False
+        return (
+            GuillotineBaseStrategy._has_valid_remainder(node.width, width, kerf)
+            and GuillotineBaseStrategy._has_valid_remainder(node.height, height, kerf)
+        )
 
-        penalty = 0
-        MIN_USEFUL_SIZE = 300
-        if 0 < remaining_w < MIN_USEFUL_SIZE:
-            penalty += 200000
-        if 0 < remaining_h < MIN_USEFUL_SIZE:
-            penalty += 200000
-        return waste_area + penalty
+    def _place_into(self, node: CutNode, pending: list, counts: List[int],
+                    placements: List[PlacedPart], kerf: float,
+                    first_cut: Direction):
+        """Ставит самую большую помещающуюся деталь и рекурсивно заполняет остатки."""
+        for i, item in enumerate(pending):
+            if item is None:
+                continue
+            batch_idx, part = item
+            width, height, rotated = part.length, part.width, False
+            if not self._fits(node, width, height, kerf):
+                if not part.rotatable or part.length == part.width:
+                    continue
+                width, height, rotated = part.width, part.length, True
+                if not self._fits(node, width, height, kerf):
+                    continue
+            pending[i] = None
+            counts[batch_idx] += 1
+            self._split_node(node, part, width, height, rotated, kerf, first_cut)
+            placements.append(
+                PlacedPart(
+                    part_label=part.label,
+                    x=node.x,
+                    y=node.y,
+                    length=width,
+                    width=height,
+                    rotated=rotated,
+                    global_index=part.global_index
+                )
+            )
 
-    def _find_best_node(self, sheet: Sheet, part: Part) -> Tuple[Optional[CutNode], Optional[int], Optional[int], bool]:
-        free_nodes = self._collect_free_nodes(sheet.root)
-        best_node = None
-        best_score = None
-        best_rotation = False
-        best_w = None
-        best_h = None
+            if first_cut == Direction.VERTICAL:
+                # Первый рез поперёк отделяет колонку: сначала заполняем её
+                # продолжение (node.down), затем новое пространство справа.
+                if node.down:
+                    self._place_into(node.down, pending, counts, placements, kerf, first_cut)
+                if node.right:
+                    self._place_into(node.right, pending, counts, placements, kerf, first_cut)
+            else:
+                # Первый рез вдоль отделяет полосу: сначала заполняем её
+                # продолжение (node.right), затем новое пространство снизу.
+                if node.right:
+                    self._place_into(node.right, pending, counts, placements, kerf, first_cut)
+                if node.down:
+                    self._place_into(node.down, pending, counts, placements, kerf, first_cut)
+            return
 
-        for node in free_nodes:
-            # Без поворота
-            if (
-                part.length <= node.width
-                and part.width <= node.height
-                and self._has_valid_remainder(node.width, part.length, sheet.kerf)
-                and self._has_valid_remainder(node.height, part.width, sheet.kerf)
-            ):
-                score = self._calculate_score(node, part.length, part.width)
-                if best_score is None or score < best_score:
-                    best_score = score
-                    best_node = node
-                    best_rotation = False
-                    best_w = part.length
-                    best_h = part.width
-            # С поворотом
-            if part.rotatable and part.length != part.width:
-                if (
-                    part.width <= node.width
-                    and part.length <= node.height
-                    and self._has_valid_remainder(node.width, part.width, sheet.kerf)
-                    and self._has_valid_remainder(node.height, part.length, sheet.kerf)
-                ):
-                    score = self._calculate_score(node, part.width, part.length) + 1
-                    if best_score is None or score < best_score:
-                        best_score = score
-                        best_node = node
-                        best_rotation = True
-                        best_w = part.width
-                        best_h = part.length
-
-        return best_node, best_w, best_h, best_rotation
-
-    def _collect_free_nodes(self, node: Optional[CutNode], free_nodes=None) -> List[CutNode]:
-        if free_nodes is None:
-            free_nodes = []
-        if not node:
-            return free_nodes
-        if not node.used:
-            free_nodes.append(node)
-        self._collect_free_nodes(node.right, free_nodes)
-        self._collect_free_nodes(node.down, free_nodes)
-        return free_nodes
-
-    def _try_place(self, sheet: Sheet, part: Part, strategy: str) -> bool:
-        node, w, h, rotated = self._find_best_node(sheet, part)
-        if node:
-            self._split_node(sheet, node, part, w, h, rotated, strategy)
-            return True
-        return False
-
-    def _split_node(self, sheet: Sheet, node: CutNode, part: Part, width: int, height: int, rotated: bool, strategy: str):
-        """Разделяет узел. Реализация зависит от strategy ('rip' или 'cross')."""
+    def _split_node(self, node: CutNode, part: Part, width: int,
+                    height: int, rotated: bool, kerf: float,
+                    first_cut: Direction):
+        """Разделяет узел резами в направлении первого реза."""
         node.used = True
         node.part = part
-        k = sheet.kerf
+        k = kerf
 
         remaining_w = node.width - width
         remaining_h = node.height - height
 
-        if strategy == "rip":
-            # Сначала вертикальный рез, потом горизонтальный.
+        if first_cut == Direction.VERTICAL:
+            # Первым идёт рез во всю высоту узла: правый остаток сохраняет
+            # всю высоту, нижний остаток зажат в колонке шириной детали.
             if remaining_w > 0:
                 node.vertical_cut = {
                     "type": "vertical",
@@ -144,7 +139,9 @@ class GuillotineBaseStrategy:
                     width,
                     remaining_h - k
                 )
-        else:  # cross
+        else:
+            # Первым идёт рез во всю ширину узла: нижний остаток сохраняет
+            # всю ширину, правый остаток зажат в полосе высотой детали.
             if remaining_h > 0:
                 node.horizontal_cut = {
                     "type": "horizontal",
@@ -172,26 +169,15 @@ class GuillotineBaseStrategy:
                     height
                 )
 
-        sheet.placed_parts.append(
-            PlacedPart(
-                part_label=part.label,
-                x=node.x,
-                y=node.y,
-                length=width,
-                width=height,
-                rotated=rotated,
-                global_index=part.global_index
-            )
-        )
-
-    def _extract_cuts(self, node: Optional[CutNode], cuts_list: List[Cut], strategy: str):
+    def _extract_cuts(self, node: Optional[CutNode], cuts_list: List[Cut],
+                      first_cut: Direction):
         """Извлекает резы в порядке, допустимом для их физического выполнения."""
         if not node:
             return
 
         ordered_cuts = (
             (node.vertical_cut, node.horizontal_cut)
-            if strategy == "rip"
+            if first_cut == Direction.VERTICAL
             else (node.horizontal_cut, node.vertical_cut)
         )
 
@@ -218,84 +204,116 @@ class GuillotineBaseStrategy:
         # Оба реза текущего узла должны быть выполнены до резов в его
         # дочерних областях. Порядок обхода этих областей не влияет на
         # доступность резов: они уже отделены родительскими резами.
-        self._extract_cuts(node.right, cuts_list, strategy)
-        self._extract_cuts(node.down, cuts_list, strategy)
+        self._extract_cuts(node.right, cuts_list, first_cut)
+        self._extract_cuts(node.down, cuts_list, first_cut)
 
-    def _pack_single_sheet(self, sheet_w: int, sheet_h: int, batches: List[PartBatch], kerf: int, trim: int, strategy: str):
+    def _pack_single_sheet(self, sheet_w: int, sheet_h: int,
+                           batches: List[PartBatch], kerf: float,
+                           first_cut: Direction):
         """Упаковывает один лист, возвращает обновлённые партии, placements, cuts."""
-        # Копия партий
-        work_batches = [PartBatch(part=b.part, remaining=b.remaining) for b in batches]
-
-        # Расширяем в плоский список
-        parts_expanded = []
-        for idx, b in enumerate(work_batches):
+        # Разворачиваем партии в экземпляры: сначала по длине, затем по ширине.
+        pending = []
+        for batch_idx, b in enumerate(batches):
             for _ in range(b.remaining):
-                p = Part(
-                    label=b.part.label,
-                    length=b.part.length,
-                    width=b.part.width,
-                    quantity=1,
-                    rotatable=b.part.rotatable,
-                    global_index=b.part.global_index
-                )
-                parts_expanded.append((idx, p))
-        parts_expanded.sort(key=lambda item: item[1].length * item[1].width, reverse=True)
+                pending.append((batch_idx, b.part))
+        pending.sort(key=lambda item: (-item[1].length, -item[1].width))
 
+        counts = [0] * len(batches)
         sheet = Sheet(sheet_w, sheet_h, kerf, 0)
+        placements: List[PlacedPart] = []
+        self._place_into(sheet.root, pending, counts, placements, kerf, first_cut)
 
-        for idx, p in parts_expanded:
-            self._try_place(sheet, p, strategy)
-
-        # Подсчитываем размещённые детали
-        placed_per_batch = [0] * len(work_batches)
-        for pp in sheet.placed_parts:
-            found = False
-            for i, b in enumerate(work_batches):
-                if pp.rotated:
-                    if (b.part.label == pp.part_label and
-                        b.part.width == pp.length and
-                        b.part.length == pp.width):
-                        placed_per_batch[i] += 1
-                        found = True
-                        break
-                else:
-                    if (b.part.label == pp.part_label and
-                        b.part.length == pp.length and
-                        b.part.width == pp.width):
-                        placed_per_batch[i] += 1
-                        found = True
-                        break
-            if not found:
-                # Дополнительный поиск по размерам
-                for i, b in enumerate(work_batches):
-                    if ((b.part.length == pp.length and b.part.width == pp.width) or
-                        (b.part.rotatable and b.part.width == pp.length and b.part.length == pp.width)):
-                        placed_per_batch[i] += 1
-                        break
-
-        for i, b in enumerate(work_batches):
-            b.remaining -= placed_per_batch[i]
-
-        if not sheet.placed_parts:
+        if not placements:
             return batches, [], []
 
-        placements = []
-        for pp in sheet.placed_parts:
-            placements.append(PlacedPart(
-                part_label=pp.part_label,
-                x=pp.x + trim,
-                y=pp.y + trim,
-                length=pp.length,
-                width=pp.width,
-                rotated=pp.rotated,
-                global_index=pp.global_index
-            ))
-        cuts = []
-        self._extract_cuts(sheet.root, cuts, strategy)
-        for c in cuts:
-            c.x1 += trim
-            c.y1 += trim
-            c.x2 += trim
-            c.y2 += trim
+        cuts: List[Cut] = []
+        self._extract_cuts(sheet.root, cuts, first_cut)
 
-        return work_batches, placements, cuts
+        new_batches = [
+            PartBatch(part=b.part, remaining=b.remaining - counts[i])
+            for i, b in enumerate(batches)
+        ]
+        return new_batches, placements, cuts
+
+    def _layout_sheets(self, stocks: List[StockSheet], parts: List[Part],
+                       config: CutConfig,
+                       pack_one: Callable[[int, int, List[PartBatch], CutConfig], tuple]):
+        """Общий цикл раскроя по листам.
+
+        pack_one(usable_l, usable_w, batches, config) возвращает кортеж
+        (new_batches, placements, cuts) для одного листа.
+        """
+        batches = [PartBatch(part=p, remaining=p.quantity) for p in parts]
+        layouts = []
+        layout_id_ord = 1
+
+        if not stocks:
+            raise ValueError("Не задано ни одного типоразмера листа")
+
+        unlimited_types = [s for s in stocks if s.is_unlimited]
+        stock_queue = list(stocks)
+        replenished = False
+        round_placed_any = False
+
+        while any(b.remaining > 0 for b in batches):
+            if not stock_queue:
+                if not unlimited_types:
+                    break
+                if replenished and not round_placed_any:
+                    # Полный круг неограниченных листов не разместил ни одной
+                    # детали — дальше циклиться бессмысленно.
+                    break
+                stock_queue = [
+                    StockSheet(t.length, t.width, t.label, is_unlimited=True)
+                    for t in unlimited_types
+                ]
+                replenished = True
+                round_placed_any = False
+
+            stock = stock_queue.pop(0)
+
+            usable_l = stock.length - config.trim_left - config.trim_right
+            usable_w = stock.width - config.trim_top - config.trim_bottom
+            if usable_l <= 0 or usable_w <= 0:
+                continue
+
+            new_batches, placements, cuts = pack_one(usable_l, usable_w, batches, config)
+            if not placements:
+                continue
+            round_placed_any = True
+
+            # Сдвигаем координаты на отступы
+            for p in placements:
+                p.x += config.trim_left
+                p.y += config.trim_bottom
+            for c in cuts:
+                c.x1 += config.trim_left
+                c.y1 += config.trim_bottom
+                c.x2 += config.trim_left
+                c.y2 += config.trim_bottom
+
+            for i, b in enumerate(batches):
+                b.remaining = new_batches[i].remaining
+
+            layouts.append(CutLayout(
+                layout_id=layout_id_ord,
+                stock_length=stock.length,
+                stock_width=stock.width,
+                repetition=1,
+                placements=placements,
+                cuts=cuts
+            ))
+            layout_id_ord += 1
+
+        # Сохраняем неразмещённые детали
+        self.unplaced_parts = [
+            {
+                'label': b.part.label,
+                'length': b.part.length,
+                'width': b.part.width,
+                'remaining': b.remaining
+            }
+            for b in batches if b.remaining > 0
+        ]
+
+        return layouts

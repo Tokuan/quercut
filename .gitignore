@@ -30,3 +30,5 @@ Thumbs.db
 
 # Project-specific (можешь добавить что-то своё)
 test_output.svg   # этот файл ты точно не хочешь коммитить
+.aider*
+test_vis.txt
