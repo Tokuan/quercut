@@ -44,11 +44,11 @@ if __name__ == "__main__":
     # Выберите стратегию:
     #strategy = SimpleRipStrategy()
     #strategy = SimpleCrossStrategy()
-    strategy = OptimalGuillotineStrategy()
+    #strategy = OptimalGuillotineStrategy()
     #strategy = AdvancedGuillotineStrategy()
     #strategy = AdvancedGuillotineStrategy(preferred_direction="horizontal", strip_sorting="desc")
     #strategy = AdvancedGuillotineStrategy(preferred_direction="vertical", strip_sorting="area")
-    #strategy = AdvancedGuillotineStrategy(preferred_direction=preferred_direction, strip_sorting=strip_sorting)
+    strategy = AdvancedGuillotineStrategy(preferred_direction=preferred_direction, strip_sorting=strip_sorting)
 
     layouts = strategy.layout(stocks, parts, config)
 
